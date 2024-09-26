@@ -1,7 +1,7 @@
 import {run} from 'jscodeshift/src/Runner.js';
 import path from 'path';
 
-// path for transform file, files to transform, and jscodeshift runner options
+// path for transform file, files to transform, and jscodeshift runner optionsr
 const transformPath = path.resolve('src/transform.mjs');
 const paths = ['test_files'];
 
@@ -10,16 +10,7 @@ const options = {
     dry: true,
     print: true,
     babel: true,
-    // extensions: [
-    //     'cjs',
-    //     'es',
-    //     'es6',
-    //     'js',
-    //     'jsx',
-    //     'mjs',
-    //     'ts',
-    //     'tsx',
-    // ],
+    extensions: 'cjs, mjs, js, jsx, ts, tsx',
     ignorePattern: [],
     ignoreConfig: [],
     gitignore: '.gitignore',
