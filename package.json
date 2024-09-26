@@ -1,0 +1,15 @@
+{
+  "name": "ui-codemod",
+  "version": "0.0.1",
+  "main": "index.js",
+  "scripts": {
+  },
+  "keywords": [
+    "codemod",
+    "ui",
+    "migration"
+  ],
+  "author": "Aman Kumar",
+  "license": "ISC",
+  "description": "Perform large scale code migrations in a ui codebase"
+}
