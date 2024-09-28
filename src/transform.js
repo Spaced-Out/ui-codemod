@@ -32,6 +32,18 @@ const transform = (fileInfo, api, options) => {
             if(attributeValue && attributeValue.type === 'Literal' && typeof attributeValue.value === 'string') {
                 attribute.value = jscodeshift.literal(getReplacementString(attributeValue.value));
             }
+
+            // attribute value is a string inside {}
+            // eg: <input placeholder={"please enter your username"} />
+            if(attributeValue && attributeValue.type === 'JSXExpressionContainer') {
+                console.log("This is very very embarassing!!!");
+                console.log(attributeValue.expression.type);
+                console.log(attributeValue.expression.value);
+
+                if(attributeValue.expression.type === 'Literal' && typeof attributeValue.expression.value === 'string') {
+                    attributeValue.expression.value = getReplacementString(attributeValue.expression.value);
+                }
+            }
         });
     });
 

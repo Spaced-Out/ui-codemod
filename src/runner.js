@@ -11,7 +11,7 @@ console.log(paths);
 const options = {
     verbose: 2,
     dry: false,
-    print: true,
+    print: false,
     runInBand: false,
     silent: false,
     failOnError: true,
