@@ -10,7 +10,7 @@ console.log(paths);
 
 const options = {
     verbose: 2,
-    dry: true,
+    dry: false,
     print: true,
     runInBand: false,
     silent: false,
