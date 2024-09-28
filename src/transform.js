@@ -16,12 +16,23 @@ const transform = (fileInfo, api, options) => {
     .forEach((path) => {
         const { openingElement, children} = path.node;
 
+        // Plain text present inside the JSX opening and closing element
+        // eg: <button>Save</button>
         children.forEach((child) => {
             if(child.type === 'JSXText') {
                 child.value = `${getReplacementString(child.value)}`;
             }
         });
 
+        openingElement.attributes.forEach((attribute) => {
+            const attributeValue = attribute.value;
+
+            // attribute value is a plain string, this won't cover plain strings written inside {}
+            // eg: <input placeholder="please enter your username" />
+            if(attributeValue && attributeValue.type === 'Literal' && typeof attributeValue.value === 'string') {
+                attribute.value = jscodeshift.literal(getReplacementString(attributeValue.value));
+            }
+        });
     });
 
 
