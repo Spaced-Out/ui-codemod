@@ -1,11 +1,4 @@
-const jscodeshift = require("jscodeshift");
-const { isAttributeRenderable } = require("./utils");
-
-// string would cause a problem, will use builders to create a proper function call expression with the extracted label as an arugment
-const getReplacementString = (label) => {
-    return `useTransition(${label})`;
-}
-
+const { isAttributeRenderable, createUseTransitionCall } = require("./utils");
 
 const transform = (fileInfo, api, options) => {
 
@@ -19,9 +12,14 @@ const transform = (fileInfo, api, options) => {
 
         // Plain text present inside the JSX opening and closing element
         // eg: <button>Save</button>
-        children.forEach((child) => {
+        children.forEach((child, index) => {
             if(child.type === 'JSXText') {
-                child.value = `${getReplacementString(child.value)}`;
+                const label = child.value.trim();
+
+                if(label) {
+                    // replacing label with createUseTransition() call
+                    path.node.children[index] = jscodeshift.jsxExpressionContainer(createUseTransitionCall(jscodeshift, label));
+                }
             }
         });
     });
@@ -42,7 +40,7 @@ const transform = (fileInfo, api, options) => {
             // attribute value is a plain string, this won't cover plain strings written inside {}
             // eg: <input placeholder="please enter your username" />
             if(attributeValue && attributeValue.type === 'Literal' && typeof attributeValue.value === 'string') {
-                path.node.value = jscodeshift.literal(getReplacementString(attributeValue.value));
+                path.node.value = jscodeshift.jsxExpressionContainer(createUseTransitionCall(jscodeshift, attributeValue.value));
             }
 
             // attribute value is a string inside {}
@@ -50,7 +48,7 @@ const transform = (fileInfo, api, options) => {
             if(attributeValue && attributeValue.type === 'JSXExpressionContainer') {
 
                 if(attributeValue.expression.type === 'Literal' && typeof attributeValue.expression.value === 'string') {
-                    attributeValue.expression.value = getReplacementString(attributeValue.expression.value);
+                    attributeValue.expression.value = createUseTransitionCall(jscodeshift, attributeValue.expression.value);
                 }
             }
         }
