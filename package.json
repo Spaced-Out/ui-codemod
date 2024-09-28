@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "main": "index.js",
   "scripts": {
-    "migrate":  "jscodeshift --transform=src/index.mjs --verbose=2 source"
+    "transform":  "node src/runner.js"
   },
   "keywords": [
     "codemod",
