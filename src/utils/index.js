@@ -16,11 +16,20 @@ const isAttributeRenderable = (tag, attribute) => {
 const createUseTransitionCall = (jscodeshift, label) => {
     return jscodeshift.callExpression(
         jscodeshift.identifier('useTransition'),
-        [jscodeshift.literal(label)]
+        [
+            jscodeshift.literal(getTranslationLabel(label)),
+            jscodeshift.literal(label)
+        ]
     );
+}
+
+// returns translation label for an extracted label
+const getTranslationLabel = (label) => {
+    return label.trim().split(" ").map((label) => label.toUpperCase()).join("_");
 }
 
 module.exports = {
     isAttributeRenderable,
-    createUseTransitionCall
+    createUseTransitionCall,
+    getTranslationLabel
 }
