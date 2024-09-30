@@ -14,11 +14,11 @@ const transform = (fileInfo, api, options) => {
         // eg: <button>Save</button>
         children.forEach((child, index) => {
             if(child.type === 'JSXText') {
-                const label = child.value.trim();
+                const trimmedValue = child.value.trim();
 
-                if(label) {
+                if(trimmedValue) {
                     // replacing label with createUseTransition() call
-                    path.node.children[index] = jscodeshift.jsxExpressionContainer(createUseTransitionCall(jscodeshift, label));
+                    path.node.children[index] = jscodeshift.jsxExpressionContainer(createUseTransitionCall(jscodeshift, trimmedValue));
                 }
             }
         });
@@ -40,7 +40,10 @@ const transform = (fileInfo, api, options) => {
             // attribute value is a plain string, this won't cover plain strings written inside {}
             // eg: <input placeholder="please enter your username" />
             if(attributeValue && attributeValue.type === 'Literal' && typeof attributeValue.value === 'string') {
-                path.node.value = jscodeshift.jsxExpressionContainer(createUseTransitionCall(jscodeshift, attributeValue.value));
+                const trimmedAttributeValue = attributeValue.value.trim();
+                if(trimmedAttributeValue) {
+                    path.node.value = jscodeshift.jsxExpressionContainer(createUseTransitionCall(jscodeshift, trimmedAttributeValue));
+                }
             }
 
             // attribute value is a string inside {}
@@ -48,7 +51,11 @@ const transform = (fileInfo, api, options) => {
             if(attributeValue && attributeValue.type === 'JSXExpressionContainer') {
 
                 if(attributeValue.expression.type === 'Literal' && typeof attributeValue.expression.value === 'string') {
-                    attributeValue.expression.value = createUseTransitionCall(jscodeshift, attributeValue.expression.value);
+                    const trimmedExpressionValue = attributeValue.expression.value.trim();
+                    if(trimmedExpressionValue) {
+                        attributeValue.expression.value = createUseTransitionCall(jscodeshift, trimmedExpressionValue);
+                    }
+
                 }
             }
         }

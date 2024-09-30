@@ -25,7 +25,7 @@ const createUseTransitionCall = (jscodeshift, label) => {
 
 // returns translation label for an extracted label
 const getTranslationLabel = (label) => {
-    return label.trim().split(" ").map((label) => label.toUpperCase()).join("_");
+    return label.split(" ").map((label) => label.toUpperCase()).join("_");
 }
 
 module.exports = {
