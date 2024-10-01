@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "main": "index.js",
   "scripts": {
-    "transform":  "node src/runner.js"
+    "transform":  "node src/index.js"
   },
   "keywords": [
     "codemod",

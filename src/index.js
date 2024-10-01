@@ -2,7 +2,7 @@ const { run } = require('jscodeshift/src/Runner');
 const path = require('path');
 
 // path for transform file, files to transform, and jscodeshift runner optionsr
-const transformPath = path.resolve('src/transform.js');
+const transformPath = path.resolve('src/transforms/languageSupport.js');
 const paths = ['test_files'];
 
 console.log(transformPath);

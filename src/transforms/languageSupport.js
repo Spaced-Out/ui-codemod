@@ -1,4 +1,4 @@
-const { isAttributeRenderable, createUseTransitionCall, checkAndAddTransitionImport } = require("./utils");
+const { isAttributeRenderable, createUseTransitionCall, checkAndAddTransitionImport } = require("../utils");
 
 
 const transform = (fileInfo, api, options) => {
