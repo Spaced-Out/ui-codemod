@@ -33,9 +33,9 @@ const checkAndAddTransitionImport = (root, jscodeshift) => {
     // Add the `useTransition` import if it doesn't exist
     const isImportPresent = root.find(jscodeshift.ImportDeclaration, {
         source: { value: USE_TRANSITION_IMPORT_PATH },
-    }).size !== 0;
+    }).size() > 0;
 
-    if(isImportPresent) {
+    if(!isImportPresent) {
         const useTransitionImport = jscodeshift.importDeclaration(
             [jscodeshift.importSpecifier(jscodeshift.identifier('useTransition'))],
             jscodeshift.literal(USE_TRANSITION_IMPORT_PATH)
