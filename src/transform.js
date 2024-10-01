@@ -1,4 +1,5 @@
-const { isAttributeRenderable, createUseTransitionCall } = require("./utils");
+const { isAttributeRenderable, createUseTransitionCall, checkAndAddTransitionImport } = require("./utils");
+
 
 const transform = (fileInfo, api, options) => {
 
@@ -19,6 +20,9 @@ const transform = (fileInfo, api, options) => {
                 if(trimmedValue) {
                     // replacing label with createUseTransition() call
                     path.node.children[index] = jscodeshift.jsxExpressionContainer(createUseTransitionCall(jscodeshift, trimmedValue));
+
+                    // add import for useTransition if not added already
+                    checkAndAddTransitionImport(root, jscodeshift);
                 }
             }
         });
@@ -43,6 +47,9 @@ const transform = (fileInfo, api, options) => {
                 const trimmedAttributeValue = attributeValue.value.trim();
                 if(trimmedAttributeValue) {
                     path.node.value = jscodeshift.jsxExpressionContainer(createUseTransitionCall(jscodeshift, trimmedAttributeValue));
+
+                    // add import for useTransition if not added already
+                    checkAndAddTransitionImport(root, jscodeshift);
                 }
             }
 
@@ -54,8 +61,10 @@ const transform = (fileInfo, api, options) => {
                     const trimmedExpressionValue = attributeValue.expression.value.trim();
                     if(trimmedExpressionValue) {
                         attributeValue.expression.value = createUseTransitionCall(jscodeshift, trimmedExpressionValue);
-                    }
 
+                        // add import for useTransition if not added already
+                        checkAndAddTransitionImport(root, jscodeshift);
+                    }cl
                 }
             }
         }
