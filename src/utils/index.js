@@ -1,3 +1,4 @@
+const jscodeshift = require("jscodeshift");
 const { RENDER_ATTRS, RENDER_ATTRS_BY_TAG, USE_TRANSITION_IMPORT_PATH } = require("../constants/index");
 
 // returns if an attribute's value is rendered on screen
@@ -13,7 +14,7 @@ const isAttributeRenderable = (tag, attribute) => {
 }
 
 // returns small subtree representing a call to useTransition function
-const createUseTransitionCall = (jscodeshift, label) => {
+const createUseTransitionCall = (label) => {
     return jscodeshift.callExpression(
         jscodeshift.identifier('useTransition'),
         [
@@ -29,7 +30,7 @@ const getTranslationLabel = (label) => {
 }
 
 // Adds `import { useTransition } from 'src/hooks/usei18n';` in the file that is getting processed
-const checkAndAddTransitionImport = (root, jscodeshift) => {
+const checkAndAddTransitionImport = (root) => {
     // Add the `useTransition` import if it doesn't exist
     const isImportPresent = root.find(jscodeshift.ImportDeclaration, {
         source: { value: USE_TRANSITION_IMPORT_PATH },

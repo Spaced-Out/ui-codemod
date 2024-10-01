@@ -19,10 +19,10 @@ const transform = (fileInfo, api, options) => {
 
                 if(trimmedValue) {
                     // replacing label with createUseTransition() call
-                    path.node.children[index] = jscodeshift.jsxExpressionContainer(createUseTransitionCall(jscodeshift, trimmedValue));
+                    path.node.children[index] = jscodeshift.jsxExpressionContainer(createUseTransitionCall( trimmedValue));
 
                     // add import for useTransition if not added already
-                    checkAndAddTransitionImport(root, jscodeshift);
+                    checkAndAddTransitionImport(root);
                 }
             }
         });
@@ -46,10 +46,10 @@ const transform = (fileInfo, api, options) => {
             if(attributeValue && attributeValue.type === 'Literal' && typeof attributeValue.value === 'string') {
                 const trimmedAttributeValue = attributeValue.value.trim();
                 if(trimmedAttributeValue) {
-                    path.node.value = jscodeshift.jsxExpressionContainer(createUseTransitionCall(jscodeshift, trimmedAttributeValue));
+                    path.node.value = jscodeshift.jsxExpressionContainer(createUseTransitionCall( trimmedAttributeValue));
 
                     // add import for useTransition if not added already
-                    checkAndAddTransitionImport(root, jscodeshift);
+                    checkAndAddTransitionImport(root);
                 }
             }
 
@@ -60,10 +60,10 @@ const transform = (fileInfo, api, options) => {
                 if(attributeValue.expression.type === 'Literal' && typeof attributeValue.expression.value === 'string') {
                     const trimmedExpressionValue = attributeValue.expression.value.trim();
                     if(trimmedExpressionValue) {
-                        attributeValue.expression.value = createUseTransitionCall(jscodeshift, trimmedExpressionValue);
+                        attributeValue.expression.value = createUseTransitionCall(trimmedExpressionValue);
 
                         // add import for useTransition if not added already
-                        checkAndAddTransitionImport(root, jscodeshift);
+                        checkAndAddTransitionImport(root);
                     }cl
                 }
             }
