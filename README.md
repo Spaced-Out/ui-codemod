@@ -26,3 +26,7 @@ We follow these simple steps to complete the migration:
 
 4. **Form the migrated sourced code from the modified AST**
     Next up, you just go in the reverse direction. Source code to AST is a 2 way process. Now, that we have modified the nodes, we can form the source code now, essentially completing our migration.
+
+
+## Debugging
+For debugging in VSCode, move the ***.launch.json*** file in the hidden ***.vscode*** folder. If it doesn't exist already, create it. Or else use the VSCode debug UI to create a launch json. This would create the ***.vscode*** folder and a ***.launch.json*** file inside it, replace it's content with the ***.launch.json*** file at the root of the project.
