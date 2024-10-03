@@ -45,9 +45,29 @@ const checkAndAddTransitionImport = (root) => {
     }
 }
 
+// returns if a variable declaration has "string" value
+const isVariableString = (variableName, scope) => {
+    const binding = scope.getBindings()[variableName];
+
+    if(binding && binding.length > 0) {
+        const declaration = binding[0].parentPath;
+
+        if(
+            declaration.node.init && 
+            declaration.node.type === 'VariableDeclarator' &&
+            declaration.node.init.type === 'Literal' && 
+            typeof declaration.node.init.value === 'string'
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
 module.exports = {
     isAttributeRenderable,
     createUseTransitionCall,
     getTranslationLabel,
-    checkAndAddTransitionImport
+    checkAndAddTransitionImport,
+    isVariableString
 }
