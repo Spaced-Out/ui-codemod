@@ -20,7 +20,7 @@ const options = {
     ignoreConfig: [],
     gitignore: '.gitignore',
     // babel: true,
-    // parser: 'babel',
+    parser: 'flow',
     // extensions: 'cjs, mjs, js, jsx, ts, tsx',
 };
 

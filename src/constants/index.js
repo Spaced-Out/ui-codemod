@@ -16,7 +16,9 @@ const RENDER_ATTRS = {
     title: true,
     placeholder: true,
     label: true,
-    'aria-label': true,
+    ariaLabel: true,
+    actionText: true,
+    body: true,
 }
 
 const USE_TRANSITION_IMPORT_PATH = "src/hooks/i18n";
