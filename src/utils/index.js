@@ -2,7 +2,7 @@ const jscodeshift = require("jscodeshift");
 const {
   RENDER_ATTRS,
   RENDER_ATTRS_BY_TAG,
-  USE_TRANSITION_IMPORT_PATH,
+  USE_I18N_IMPORT_PATH,
 } = require("../constants/index");
 
 // returns if an attribute's value is rendered on screen
@@ -19,14 +19,13 @@ const isAttributeRenderable = (tag, attribute) => {
 
 // returns true if text is a link
 function containsLink(text) {
-    const urlPattern = /(https?:\/\/[^\s]+)/g;
-    return urlPattern.test(text);
-  }
-  
+  const urlPattern = /(https?:\/\/[^\s]+)/g;
+  return urlPattern.test(text);
+}
 
-// returns small subtree representing a call to useTransition function
+// returns small subtree representing a call to 't' function
 const createUseTransitionCall = (label) => {
-  return jscodeshift.callExpression(jscodeshift.identifier("useTransition"), [
+  return jscodeshift.callExpression(jscodeshift.identifier("t"), [
     jscodeshift.literal(getTranslationLabel(label)),
     jscodeshift.literal(label),
   ]);
@@ -40,22 +39,113 @@ const getTranslationLabel = (label) => {
     .join("_");
 };
 
-// Adds `import { useTransition } from 'src/hooks/usei18n';` in the file that is getting processed
-const checkAndAddTransitionImport = (root) => {
-  // Add the `useTransition` import if it doesn't exist
+// Adds `import { useI18n } from 'src/hooks/usei18n';` in the file that is getting processed
+const checkAndAddI18nImport = (root) => {
+  // Add the `useI18n` import if it doesn't exist
   const isImportPresent =
     root
       .find(jscodeshift.ImportDeclaration, {
-        source: { value: USE_TRANSITION_IMPORT_PATH },
+        source: { value: USE_I18N_IMPORT_PATH },
       })
       .size() > 0;
 
   if (!isImportPresent) {
-    const useTransitionImport = jscodeshift.importDeclaration(
-      [jscodeshift.importSpecifier(jscodeshift.identifier("useTransition"))],
-      jscodeshift.literal(USE_TRANSITION_IMPORT_PATH)
+    const useI18nImport = jscodeshift.importDeclaration(
+      [jscodeshift.importSpecifier(jscodeshift.identifier("useI18n"))],
+      jscodeshift.literal(USE_I18N_IMPORT_PATH)
     );
-    root.get().node.program.body.unshift(useTransitionImport);
+    root.get().node.program.body.unshift(useI18nImport);
+  }
+};
+
+// Check if the component contains static string literals (inside JSX)
+const hasStaticStringLiterals = (path) => {
+  const jsxElements = jscodeshift(path).find(jscodeshift.JSXText);
+
+  // Return true if any static text (string literal) is found
+  return jsxElements.some((jsxPath) => {
+    const value = jsxPath.node.value.trim();
+    return typeof value === "string" && value.length > 0;
+  });
+};
+
+// Handles component types (arrow functions and function declarations)
+const checkAndAddI18nInstance = (root) => {
+  // Handle components declared as arrow functions
+  root.find(jscodeshift.VariableDeclaration).forEach((path) => {
+    const declarations = path.node.declarations;
+    declarations.forEach((declaration) => {
+      if (
+        declaration.init &&
+        declaration.init.type === "ArrowFunctionExpression"
+      ) {
+        const componentBody = declaration.init.body;
+
+        // If the component contains static labels, add i18n instance
+        if (hasStaticStringLiterals(path, jscodeshift)) {
+          addI18nInstanceIfNeeded(componentBody, jscodeshift);
+        }
+      }
+    });
+  });
+
+  // Handle components declared using function declarations
+  root.find(jscodeshift.FunctionDeclaration).forEach((path) => {
+    const componentBody = path.node.body;
+
+    // If the component contains static labels, add i18n instance
+    if (hasStaticStringLiterals(path, jscodeshift)) {
+      addI18nInstanceIfNeeded(componentBody, jscodeshift);
+    }
+  });
+};
+
+// Adds the i18n instance if not present
+const addI18nInstanceIfNeeded = (componentBody, jscodeshift) => {
+  const bodyStatements = componentBody.body;
+
+  // Check if either variable already exists
+  const hasLabelI18nInstance = bodyStatements.some(
+    (statement) =>
+      statement.type === "VariableDeclaration" &&
+      statement.declarations.some(
+        (decl) => decl.id.name === "labelI18nInstance"
+      )
+  );
+
+  const hasTAssignment = bodyStatements.some(
+    (statement) =>
+      statement.type === "VariableDeclaration" &&
+      statement.declarations.some((decl) => decl.id.name === "t")
+  );
+
+  // Only add the i18n lines if they don't exist already
+  if (!hasLabelI18nInstance) {
+    const labelI18nInstanceStatement = jscodeshift.variableDeclaration(
+      "const",
+      [
+        jscodeshift.variableDeclarator(
+          jscodeshift.identifier("labelI18nInstance"),
+          jscodeshift.callExpression(jscodeshift.identifier("useI18n"), [])
+        ),
+      ]
+    );
+    bodyStatements.unshift(labelI18nInstanceStatement);
+  }
+
+  if (!hasTAssignment) {
+    const tStatement = jscodeshift.variableDeclaration("const", [
+      jscodeshift.variableDeclarator(
+        jscodeshift.identifier("t"),
+        jscodeshift.memberExpression(
+          jscodeshift.identifier("labelI18nInstance"),
+          jscodeshift.identifier("t")
+        )
+      ),
+    ]);
+    const labelInstanceStatement =  bodyStatements.shift();
+    bodyStatements.unshift(tStatement);
+    bodyStatements.unshift(labelInstanceStatement);
   }
 };
 
@@ -82,7 +172,8 @@ module.exports = {
   isAttributeRenderable,
   createUseTransitionCall,
   getTranslationLabel,
-  checkAndAddTransitionImport,
+  checkAndAddI18nImport,
+  checkAndAddI18nInstance,
   isVariableString,
   containsLink,
 };

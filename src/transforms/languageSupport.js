@@ -1,7 +1,8 @@
 const {
   isAttributeRenderable,
   createUseTransitionCall,
-  checkAndAddTransitionImport,
+  checkAndAddI18nImport,
+  checkAndAddI18nInstance,
   containsLink,
 } = require("../utils");
 
@@ -43,7 +44,7 @@ const transform = (fileInfo, api, options) => {
         );
       }
 
-      // Apply useTransition call on the string literals if they exist
+      // Apply useI18n call on the string literals if they exist
       if (consequentVal && !containsLink(consequentVal)) {
         expression.consequent = jscodeshift.jsxExpressionContainer(
           createUseTransitionCall(consequentVal)
@@ -59,11 +60,11 @@ const transform = (fileInfo, api, options) => {
     return expression;
   };
 
-//   root.find(jscodeshift.VariableDeclaration).forEach((path)=> {
-//     if(path.node.init.type === 'ArrayExpression'){
-//         if(path.node.)
-//     }
-//   })
+  //   root.find(jscodeshift.VariableDeclaration).forEach((path)=> {
+  //     if(path.node.init.type === 'ArrayExpression'){
+  //         if(path.node.)
+  //     }
+  //   })
 
   root.find(jscodeshift.JSXElement).forEach((path) => {
     const { children } = path.node;
@@ -80,8 +81,9 @@ const transform = (fileInfo, api, options) => {
             createUseTransitionCall(trimmedValue)
           );
 
-          // add import for useTransition if not added already
-          checkAndAddTransitionImport(root);
+          // add import for useI18n if not added already
+          checkAndAddI18nImport(root);
+          checkAndAddI18nInstance(root);
         }
       } else if (child.type === "JSXExpressionContainer") {
         if (child.expression.type === "TemplateLiteral") {
@@ -89,13 +91,14 @@ const transform = (fileInfo, api, options) => {
           child.expression.quasis.forEach((expVal, index) => {
             const trimmedExpressionValue = expVal.value.raw.trim();
             if (trimmedExpressionValue) {
-              // Push the useTransition call as an expression
+              // Push the useI18n call as an expression
               newExpressions.push(
                 createUseTransitionCall(trimmedExpressionValue)
               );
 
-              // Add import for useTransition if not added already
-              checkAndAddTransitionImport(root);
+              // Add import for useI18n if not added already
+              checkAndAddI18nImport(root);
+              checkAndAddI18nInstance(root);
             }
 
             if (child.expression.expressions[index]) {
@@ -153,7 +156,8 @@ const transform = (fileInfo, api, options) => {
         const trimmedExpressionValue = expVal.value.raw.trim();
         if (trimmedExpressionValue) {
           newExpressions.push(createUseTransitionCall(trimmedExpressionValue));
-          checkAndAddTransitionImport(root);
+          checkAndAddI18nImport(root);
+          checkAndAddI18nInstance(root);
         }
         if (path.node.expression.expressions[index]) {
           let expr = path.node.expression.expressions[index];
@@ -220,8 +224,9 @@ const transform = (fileInfo, api, options) => {
             createUseTransitionCall(trimmedAttributeValue)
           );
 
-          // add import for useTransition if not added already
-          checkAndAddTransitionImport(root);
+          // add import for useI18n if not added already
+          checkAndAddI18nImport(root);
+          checkAndAddI18nInstance(root);
         }
       }
 
@@ -239,8 +244,9 @@ const transform = (fileInfo, api, options) => {
               trimmedExpressionValue
             );
 
-            // add import for useTransition if not added already
-            checkAndAddTransitionImport(root);
+            // add import for useI18n if not added already
+            checkAndAddI18nImport(root);
+            checkAndAddI18nInstance(root);
           }
         }
       }

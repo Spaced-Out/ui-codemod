@@ -21,10 +21,10 @@ const RENDER_ATTRS = {
     body: true,
 }
 
-const USE_TRANSITION_IMPORT_PATH = "src/hooks/i18n";
+const USE_I18N_IMPORT_PATH = "src/hooks/useI18n";
 
 module.exports = {
     RENDER_ATTRS,
     RENDER_ATTRS_BY_TAG,
-    USE_TRANSITION_IMPORT_PATH
+    USE_I18N_IMPORT_PATH
 }
