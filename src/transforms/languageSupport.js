@@ -288,6 +288,38 @@ const transform = (fileInfo, api, options) => {
           // Add import for useTransition if not added already
           checkAndAddI18nImport(root);
         }
+      } else if (
+        init.type === "TemplateLiteral" &&
+        isVariableVisibleInUI(jscodeshift, root, variableName)
+      ) {
+        const newExpressions = [];
+        path.node.init.quasis.forEach((expVal, index) => {
+          const trimmedExpressionValue = expVal.value.raw.trim();
+          if (trimmedExpressionValue) {
+            newExpressions.push(
+              createUseTransitionCall(trimmedExpressionValue)
+            );
+            checkAndAddI18nImport(root);
+            checkAndAddI18nInstance(root);
+          }
+          if (path.node.init.expressions[index]) {
+            let expr = path.node.init.expressions[index];
+            if (expr.type === "ConditionalExpression") {
+              expr = transformConditionalExpression(expr);
+            }
+            newExpressions.push(expr);
+          }
+        });
+
+        path.node.init = jscodeshift.templateLiteral(
+          newExpressions.map((exp, i) =>
+            jscodeshift.templateElement(
+              { raw: "", cooked: "" },
+              i === newExpressions.length - 1
+            )
+          ),
+          newExpressions
+        );
       }
     });
 

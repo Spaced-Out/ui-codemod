@@ -56,7 +56,9 @@ const checkAndAddI18nImport = (root) => {
       [jscodeshift.importSpecifier(jscodeshift.identifier("useI18n"))],
       jscodeshift.literal(USE_I18N_IMPORT_PATH)
     );
+    const topElem = root.get().node.program.body.shift(); // for `@flow strict`
     root.get().node.program.body.unshift(useI18nImport);
+    root.get().node.program.body.unshift(topElem);
   }
 };
 
@@ -200,7 +202,7 @@ const isVariableInitializedWithString = (j) => (path) => {
       case 'Literal':
           return typeof init.value === 'string';
       case 'TemplateLiteral':
-          return init.expressions.length === 0;
+          return true;
       case 'BinaryExpression':
           return init.operator === '+' && 
                  (isStringExpression(j)(init.left) || isStringExpression(j)(init.right));
