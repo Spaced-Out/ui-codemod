@@ -8,6 +8,8 @@
 # testing
 /coverage
 
+test_files/
+
 # production
 /build
 
