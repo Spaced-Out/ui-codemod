@@ -60,12 +60,31 @@ const checkAndAddI18nImport = (root) => {
 
 // Check if the component contains static string literals (inside JSX)
 const hasStaticStringLiterals = (path) => {
-  const jsxElements = jscodeshift(path).find(jscodeshift.JSXText);
+  const jsxElements = jscodeshift(path).find(jscodeshift.JSXElement);
 
-  // Return true if any static text (string literal) is found
   return jsxElements.some((jsxPath) => {
-    const value = jsxPath.node.value.trim();
-    return typeof value === "string" && value.length > 0;
+    const hasStaticText = jscodeshift(jsxPath)
+      .find(jscodeshift.JSXText)
+      .some((textPath) => textPath.node.value.trim().length > 0);
+
+    const hasStaticInAttributes = jscodeshift(jsxPath)
+      .find(jscodeshift.JSXAttribute)
+      .some((attrPath) => {
+        const value = attrPath.node.value;
+        const elementPath = attrPath.parentPath.parentPath;
+        const elementName = elementPath.node.name.name;
+        const attrName = attrPath.node.name.name;
+        const attributeValue = path.node.value;
+        return (
+          isAttributeRenderable(elementName, attrName) &&
+          value &&
+          value.type === "Literal" &&
+          typeof value.value === "string" &&
+          value.value.length > 0
+        );
+      });
+
+    return hasStaticText || hasStaticInAttributes;
   });
 };
 
@@ -82,8 +101,8 @@ const checkAndAddI18nInstance = (root) => {
         const componentBody = declaration.init.body;
 
         // If the component contains static labels, add i18n instance
-        if (hasStaticStringLiterals(path, jscodeshift)) {
-          addI18nInstanceIfNeeded(componentBody, jscodeshift);
+        if (hasStaticStringLiterals(path)) {
+          addI18nInstanceIfNeeded(componentBody);
         }
       }
     });
@@ -94,14 +113,14 @@ const checkAndAddI18nInstance = (root) => {
     const componentBody = path.node.body;
 
     // If the component contains static labels, add i18n instance
-    if (hasStaticStringLiterals(path, jscodeshift)) {
-      addI18nInstanceIfNeeded(componentBody, jscodeshift);
+    if (hasStaticStringLiterals(path)) {
+      addI18nInstanceIfNeeded(componentBody);
     }
   });
 };
 
 // Adds the i18n instance if not present
-const addI18nInstanceIfNeeded = (componentBody, jscodeshift) => {
+const addI18nInstanceIfNeeded = (componentBody) => {
   const bodyStatements = componentBody.body;
 
   // Check if either variable already exists
@@ -143,7 +162,7 @@ const addI18nInstanceIfNeeded = (componentBody, jscodeshift) => {
         )
       ),
     ]);
-    const labelInstanceStatement =  bodyStatements.shift();
+    const labelInstanceStatement = bodyStatements.shift();
     bodyStatements.unshift(tStatement);
     bodyStatements.unshift(labelInstanceStatement);
   }
