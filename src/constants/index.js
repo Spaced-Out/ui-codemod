@@ -16,9 +16,20 @@ const RENDER_ATTRS = {
     title: true,
     placeholder: true,
     label: true,
-    ariaLabel: true,
+    arialLabel: true,
     actionText: true,
-    body: true,
+    body:true,
+    text:true,
+    time:true,
+    confirmText:true,
+    abortText:true,
+    desciption:true,
+    actionText:true,
+    heading:true,
+    errorText:true,
+    rejectReason:true,
+    helperText:true,
+    secondaryInstruction:true
 }
 
 const USE_TRANSITION_IMPORT_PATH = "src/hooks/i18n";

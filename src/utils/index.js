@@ -34,11 +34,12 @@ const createUseTransitionCall = (label) => {
 
 // returns translation label for an extracted label
 const getTranslationLabel = (label) => {
-  return label
-    .split(" ")
-    .map((label) => label.toUpperCase())
-    .join("_");
-};
+    return label
+        .split(" ")
+        //replace special characters from string
+        .map((label) => label.toUpperCase().replace(/[^A-Z0-9\s]/g, ""))
+        .join("_");
+}
 
 // Adds `import { useTransition } from 'src/hooks/usei18n';` in the file that is getting processed
 const checkAndAddTransitionImport = (root) => {
@@ -60,29 +61,84 @@ const checkAndAddTransitionImport = (root) => {
 };
 
 // returns if a variable declaration has "string" value
-const isVariableString = (variableName, scope) => {
-  const binding = scope.getBindings()[variableName];
+// const isVariableString = (variableName, scope) => {
+//     const binding = scope.getBindings()[variableName];
 
-  if (binding && binding.length > 0) {
-    const declaration = binding[0].parentPath;
+//     if(binding && binding.length > 0) {
+//         const declaration = binding[0].parentPath;
 
-    if (
-      declaration.node.init &&
-      declaration.node.type === "VariableDeclarator" &&
-      declaration.node.init.type === "Literal" &&
-      typeof declaration.node.init.value === "string"
-    ) {
-      return true;
+//         if(
+//             declaration.node.init && 
+//             declaration.node.type === 'VariableDeclarator' &&
+//             declaration.node.init.type === 'Literal' && 
+//             typeof declaration.node.init.value === 'string'
+//         ) {
+//             return true;
+//         }
+//     }
+//     return false;
+// }
+
+
+//returns if a variable declaration has "string" value
+const isVariableInitializedWithString = (j) => (path) => {
+    const init = path.node.init;
+    if (!init) return false;
+
+    switch (init.type) {
+        case 'StringLiteral':
+            return true;
+        case 'Literal':
+            return typeof init.value === 'string';
+        case 'TemplateLiteral':
+            return init.expressions.length === 0;
+        case 'BinaryExpression':
+            return init.operator === '+' && 
+                   (isStringExpression(j)(init.left) || isStringExpression(j)(init.right));
+        default:
+            return false;
     }
-  }
-  return false;
 };
+
+
+
+// return if variable declaration has "Array" value
+// const isVariableInitializedWithArray = (j)=>(path) => {
+//     const init = path.node.init;   
+//     if (!init) {   
+//         return false;
+//     }
+//     if (init.type === 'ArrayExpression') {
+//         return true; 
+//     }
+//     return false;
+// };
+
+
+// helper function
+const isStringExpression = (j) => (node) => {
+    switch (node.type) {
+        case 'StringLiteral':
+        case 'TemplateLiteral':
+            return true;
+        case 'Literal':
+            return typeof node.value === 'string';
+        case 'BinaryExpression':
+            return node.operator === '+' && 
+                   (isStringExpression(j)(node.left) || isStringExpression(j)(node.right));
+        default:
+            return false;
+    }
+};
+
+
+
 
 module.exports = {
-  isAttributeRenderable,
-  createUseTransitionCall,
-  getTranslationLabel,
-  checkAndAddTransitionImport,
-  isVariableString,
-  containsLink,
-};
+    isAttributeRenderable,
+    createUseTransitionCall,
+    getTranslationLabel,
+    checkAndAddTransitionImport,
+    isVariableInitializedWithString,
+    containsLink
+}

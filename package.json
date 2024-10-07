@@ -3,7 +3,8 @@
   "version": "0.0.1",
   "main": "index.js",
   "scripts": {
-    "transform":  "node src/index.js"
+    "transform":  "node src/index.js",
+    "dev":"node test_files/text.jsx"
   },
   "keywords": [
     "codemod",
