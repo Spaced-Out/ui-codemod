@@ -1,41 +1,36 @@
-import { useTransition } from "src/hooks/i18n";
 const values = [
   {
     key: 'web',
-    label: useTransition("WEB", "Web"),
+    label: 'Web',
   },
   {
     key: 'sms',
-    label: useTransition("MOBILE_(SMS)", "Mobile (SMS)"),
+    label: 'Mobile (SMS)',
   },
 ];
 
-const lab = {
-  label: "value"
 
-}
-
-{/* <> { } </> */}
-
-const list2 = [ {
+const list2 = {
   label : 'val'
-}]
+};
 
 function test() {
   return (
     <div>
+
       <ButtonDropdown
         type="tertiary"
         menu={{
           isFluid: false,
           menuDisabled: false,
-          options: {values},
+          options: {list2},
           size: 'medium',
         }}
         onOptionSelect={(option) => onPreview(option.key)}
         size="medium"
         disabled={previewDisabled}
       >{useTransition("PREVIEW_BOT", "Preview Bot")}</ButtonDropdown>
+          
     </div>
   )
 }

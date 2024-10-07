@@ -297,6 +297,11 @@ const transform = (fileInfo, api, options) => {
                         }
                     });
                 }
+                else if (variablePath.node.init.type === 'ObjectExpression')
+                {
+                    const { properties } = variablePath.node.init;
+                    processLabelProperty(properties, root);
+                }
             });
     }
     

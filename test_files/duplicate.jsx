@@ -1,16 +1,15 @@
-import { useTransition } from "src/hooks/i18n";
 const name = [
   {
     key: '1',
-    label: useTransition("OPTION_ONE", "Option one")
+    label: "Option one"
   },
   {
     key: '2',
-    label: useTransition("OPTION_TWO", "Option two")
+    label: "Option two"
   },
   {
     key: '3',
-    label: useTransition("THREE", "three")
+    label: "three"
   }
 ];
 
