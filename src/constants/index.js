@@ -10,15 +10,27 @@ const RENDER_ATTRS_BY_TAG = {
         value: true,
         placeholder: true
     }
+    
 }
 
 const RENDER_ATTRS = {
     title: true,
     placeholder: true,
     label: true,
-    ariaLabel: true,
+    arialLabel: true,
     actionText: true,
-    body: true,
+    body:true,
+    text:true,
+    time:true,
+    confirmText:true,
+    abortText:true,
+    desciption:true,
+    actionText:true,
+    heading:true,
+    errorText:true,
+    rejectReason:true,
+    helperText:true,
+    secondaryInstruction:true
 }
 
 const USE_I18N_IMPORT_PATH = "src/hooks/useI18n";

@@ -4,6 +4,8 @@ const {
   checkAndAddI18nImport,
   checkAndAddI18nInstance,
   containsLink,
+  isVariableInitializedWithString,
+  isVariableInitializedWithArray,
 } = require("../utils");
 
 const transform = (fileInfo, api, options) => {
@@ -202,6 +204,92 @@ const transform = (fileInfo, api, options) => {
       );
     }
   });
+
+  // Check if the variable is visibly used in JSX (not just used but actually rendered)
+  const isVariableVisibleInUI = (j, root, variableName) => {
+    return root
+      .find(j.JSXExpressionContainer)
+      .filter((path) => {
+        // Ensure the JSXExpression is part of a visible tag (not a fragment, etc.
+        const parent = path.parentPath;
+        if (parent.node.type === "JSXElement") {
+          const openingElement = parent.node.openingElement;
+          if (openingElement) {
+            return true;
+          }
+        }
+        return false;
+      })
+      .some((path) => {
+        // Find if the variable (Identifier) is used inside this JSXExpression
+        return j(path)
+          .find(j.Identifier)
+          .some((id) => id.node.name === variableName);
+      });
+  };
+
+  // replace the variable array which we are using in jsx
+  root
+    .find(jscodeshift.VariableDeclarator)
+    .filter(isVariableInitializedWithArray(jscodeshift))
+    .forEach((path) => {
+      const variableName = path.node.id.name;
+      const init = path.node.init;
+
+      if (
+        init.type === "ArrayExpression" &&
+        isVariableVisibleInUI(jscodeshift, root, variableName)
+      ) {
+        const elements = init.elements;
+
+        if (elements.length > 0) {
+          const transformedElements = elements
+            .filter(
+              (element) =>
+                element.type === "Literal" || element.type === "StringLiteral"
+            )
+            .map((element) => {
+              const trimmedValue = element.value.trim();
+              return trimmedValue
+                ? createUseTransitionCall(trimmedValue)
+                : null;
+            })
+            .filter(Boolean);
+
+          if (transformedElements.length > 0) {
+            path.node.init = jscodeshift.arrayExpression(transformedElements);
+            checkAndAddI18nImport(root);
+          }
+        }
+      }
+    });
+
+  
+    
+
+  // replace the variable string which we are using in jsx
+
+  root
+    .find(jscodeshift.VariableDeclarator)
+    .filter(isVariableInitializedWithString(jscodeshift))
+    .forEach((path) => {
+      const variableName = path.node.id.name;
+      const init = path.node.init;
+
+      if (
+        (init.type === "StringLiteral" ||
+          (init.type === "Literal" && typeof init.value === "string")) &&
+        isVariableVisibleInUI(jscodeshift, root, variableName)
+      ) {
+        const trimmedValue = init.value.trim();
+        if (trimmedValue) {
+          // Replace the initializer with createUseTransition() call
+          path.node.init = createUseTransitionCall(trimmedValue);
+          // Add import for useTransition if not added already
+          checkAndAddI18nImport(root);
+        }
+      }
+    });
 
   root.find(jscodeshift.JSXAttribute).forEach((path) => {
     const elementPath = path.parentPath.parentPath;
