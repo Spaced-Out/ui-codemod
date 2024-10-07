@@ -19,7 +19,7 @@ const options = {
     ignorePattern: [],
     ignoreConfig: [],
     gitignore: '.gitignore',
-    // babel: true,
+    babel: true,
     parser: 'flow',
     // extensions: 'cjs, mjs, js, jsx, ts, tsx',
 };
