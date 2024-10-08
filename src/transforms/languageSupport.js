@@ -3,6 +3,8 @@ const {
   createUseTransitionCall,
   checkAndAddTransitionImport,
   containsLink,
+  processLabelProperty,
+  findAndProcessOptionsArray
 } = require("../utils");
 
 const transform = (fileInfo, api, options) => {
@@ -247,10 +249,11 @@ const transform = (fileInfo, api, options) => {
     }
   });
 
-    root
+  // Finds the ObjectExpression nodes within the JSXElement to transform 'label' properties
+  root
     .find(jscodeshift.JSXElement)
     .forEach((path) => {
-        // Finds the ObjectExpression nodes within the JSXElement to transform 'label' properties
+
         jscodeshift(path)
             .find(jscodeshift.ObjectExpression)
             .forEach((objectPath) => {
@@ -262,78 +265,51 @@ const transform = (fileInfo, api, options) => {
             });
     });
 
-    function processLabelProperty(properties, root) {
-        properties.forEach((property) => {
-            // Check if the property contains the 'label' key and it's a literal string
-            if (property.key && property.key.name === 'label' && property.value.type === 'Literal') {
-                const labelValue = property.value.value.trim();
-    
-                if (labelValue) {
-                    // Apply the translation only to labels in the values array
-                    property.value = createUseTransitionCall(labelValue);
-                    checkAndAddTransitionImport(root);
-                }
-            }
-        });
-    }
-    
-    function findAndProcessOptionsArray(objectName, root) {
-        // Find the object with the same name as the options attribute's expression
-        root
-            .find(jscodeshift.VariableDeclarator, { id: { name: objectName } })
-            .forEach((variablePath) => {
-                // Ensure that the variable has an init property
-                if (variablePath.node.init && variablePath.node.init.type === 'ArrayExpression') {
-                    const { elements } = variablePath.node.init;
-    
-                    elements.forEach((element) => {
-                        // Check if the element is an ObjectExpression
-                        if (element.type === 'ObjectExpression') {
-                            const { properties } = element;
-    
-                            if (properties) {
-                                processLabelProperty(properties, root);
-                            }
-                        }
-                    });
-                }
-                else if (variablePath.node.init.type === 'ObjectExpression')
-                {
-                    const { properties } = variablePath.node.init;
-                    processLabelProperty(properties, root);
-                }
-            });
-    }
-    
-    // First part: Handling ObjectExpression inside menu attribute
-    root.find(jscodeshift.JSXAttribute, { name: { name: "menu" } })
+  // if the label is not passed directly
+  root
+    .find(jscodeshift.JSXElement)
+    .forEach((elementPath) => {
+        const menuAttr = jscodeshift(elementPath)
+        
+        .find(jscodeshift.JSXAttribute, { name: { name: 'menu' } })
         .find(jscodeshift.ObjectExpression)
-        .forEach(path => {
-            const optionsProp = path.node.properties.find(prop => 
+        .paths()[0];
+
+        // Handling ObjectExpression inside menu attribute
+        if (menuAttr) {
+            // If a menu attribute with ObjectExpression is found, process it
+            const optionsProp = menuAttr.node.properties.find ( (prop) => 
                 prop.key && prop.key.name === 'options'
             );
-    
+
             if (optionsProp && optionsProp.value.type === 'ObjectExpression') {
                 const propsUnderObj = optionsProp.value.properties;
-                const objectName = propsUnderObj[0].value.name;
-    
-                findAndProcessOptionsArray(objectName, root);
+
+                if(propsUnderObj.length > 0)
+                {
+                    const objectName = propsUnderObj[0].value.name;
+                    findAndProcessOptionsArray(objectName, root);
+                }
             }
-        });
-    
-    // Second part: Handling JSX options attribute
-    root.find(jscodeshift.JSXElement)
-        .find(jscodeshift.JSXAttribute, { name: { name: 'options' } })
-        .forEach((optionsAttrPath) => {
-            const attributeValue = optionsAttrPath.node.value;
-    
-            // Ensure the value is a JSXExpressionContainer
-            if (attributeValue && attributeValue.type === 'JSXExpressionContainer' && attributeValue.expression) {
-                const objectName = attributeValue.expression.name;
-    
-                findAndProcessOptionsArray(objectName, root);
+        } 
+        else {  //  Handling JSX options attribute
+            const optionsAttr = jscodeshift(elementPath)
+                .find(jscodeshift.JSXAttribute, { name: { name: 'options' } })
+                .paths()[0];
+
+            if (optionsAttr) {
+                const attributeValue = optionsAttr.node.value;
+
+                if ( attributeValue &&
+                    attributeValue.type === 'JSXExpressionContainer' &&
+                    attributeValue.expression
+                    ) {
+                    const objectName = attributeValue.expression.name;
+                    findAndProcessOptionsArray(objectName, root);
+                }
             }
-        });
+        }
+    });
 
   // creating modified source code file using updated AST
   return root.toSource();
