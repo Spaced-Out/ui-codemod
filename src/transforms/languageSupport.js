@@ -4,6 +4,8 @@ const {
   checkAndAddI18nImport,
   checkAndAddI18nInstance,
   containsLink,
+  processLabelProperty,
+  findAndProcessOptionsArray,
   isVariableInitializedWithString,
   isVariableInitializedWithArray,
 } = require("../utils");
@@ -372,6 +374,68 @@ const transform = (fileInfo, api, options) => {
       }
     }
   });
+
+  // Finds the ObjectExpression nodes within the JSXElement to transform 'label' properties
+  root
+    .find(jscodeshift.JSXElement)
+    .forEach((path) => {
+
+        jscodeshift(path)
+            .find(jscodeshift.ObjectExpression)
+            .forEach((objectPath) => {
+                const { properties } = objectPath.node;
+
+                if (properties) {
+                    processLabelProperty(properties, root);
+                }
+            });
+    });
+
+  // if the label is not passed directly
+  root
+    .find(jscodeshift.JSXElement)
+    .forEach((elementPath) => {
+        const menuAttr = jscodeshift(elementPath)
+        
+        .find(jscodeshift.JSXAttribute, { name: { name: 'menu' } })
+        .find(jscodeshift.ObjectExpression)
+        .paths()[0];
+
+        // Handling ObjectExpression inside menu attribute
+        if (menuAttr) {
+            // If a menu attribute with ObjectExpression is found, process it
+            const optionsProp = menuAttr.node.properties.find ( (prop) => 
+                prop.key && prop.key.name === 'options'
+            );
+
+            if (optionsProp && optionsProp.value.type === 'ObjectExpression') {
+                const propsUnderObj = optionsProp.value.properties;
+
+                if(propsUnderObj.length > 0)
+                {
+                    const objectName = propsUnderObj[0].value.name;
+                    findAndProcessOptionsArray(objectName, root);
+                }
+            }
+        } 
+        else {  //  Handling JSX options attribute
+            const optionsAttr = jscodeshift(elementPath)
+                .find(jscodeshift.JSXAttribute, { name: { name: 'options' } })
+                .paths()[0];
+
+            if (optionsAttr) {
+                const attributeValue = optionsAttr.node.value;
+
+                if ( attributeValue &&
+                    attributeValue.type === 'JSXExpressionContainer' &&
+                    attributeValue.expression
+                    ) {
+                    const objectName = attributeValue.expression.name;
+                    findAndProcessOptionsArray(objectName, root);
+                }
+            }
+        }
+    });
 
   // creating modified source code file using updated AST
   return root.toSource();

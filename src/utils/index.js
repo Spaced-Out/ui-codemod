@@ -211,6 +211,51 @@ const isVariableInitializedWithString = (j) => (path) => {
   }
 };
 
+  // based on the object name, finding the variable if label exists changes it
+  function findAndProcessOptionsArray(objectName, root) {
+    // Find the object with the same name as the options attribute's expression
+    root
+        .find(jscodeshift.VariableDeclarator, { id: { name: objectName } })
+        .forEach((variablePath) => {
+            // Ensure that the variable has an init property
+            if (variablePath.node.init && variablePath.node.init.type === 'ArrayExpression') {
+                const { elements } = variablePath.node.init;
+
+                elements.forEach((element) => {
+                    // Check if the element is an ObjectExpression
+                    if (element.type === 'ObjectExpression') {
+                        const { properties } = element;
+
+                        if (properties) {
+                            processLabelProperty(properties, root);
+                        }
+                    }
+                });
+            }
+            else if (variablePath.node.init.type === 'ObjectExpression')
+            {
+                const { properties } = variablePath.node.init;
+                processLabelProperty(properties, root);
+            }
+    });
+}
+
+// process the label for the passed properties
+function processLabelProperty(properties, root) {
+  properties.forEach((property) => {
+      // Check if the property contains the 'label' key and it's a literal string
+      if (property.key && property.key.name === 'label' && property.value.type === 'Literal') {
+          const labelValue = property.value.value.trim();
+
+          if (labelValue) {
+              // Apply the translation only to labels in the values array
+              property.value = createUseTransitionCall(labelValue);
+              checkAndAddTransitionImport(root);
+          }
+      }
+  });
+}
+
 // helper function
 const isStringExpression = (j) => (node) => {
   switch (node.type) {
@@ -239,7 +284,6 @@ const isVariableInitializedWithArray = (j)=>(path) => {
     return false;
 };
 
-
 module.exports = {
   isAttributeRenderable,
   createUseTransitionCall,
@@ -249,4 +293,6 @@ module.exports = {
   isVariableInitializedWithString,
   isVariableInitializedWithArray,
   containsLink,
+  processLabelProperty,
+  findAndProcessOptionsArray
 };

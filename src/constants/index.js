@@ -19,6 +19,7 @@ const RENDER_ATTRS = {
     label: true,
     ariaLabel: true,
     actionText: true,
+    value: true,
     body:true,
     text:true,
     time:true,
