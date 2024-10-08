@@ -10,6 +10,7 @@ const RENDER_ATTRS_BY_TAG = {
         value: true,
         placeholder: true
     }
+    
 }
 
 const RENDER_ATTRS = {
@@ -18,23 +19,25 @@ const RENDER_ATTRS = {
     label: true,
     ariaLabel: true,
     actionText: true,
-    body: true,
-
-    text: true,
     value: true,
-    time: true,
-    description: true,
-    errorText: true,
-    helperText: true,
-    confirmText: true,
-    abortText: true,
-    heading: true
+    body:true,
+    text:true,
+    time:true,
+    confirmText:true,
+    abortText:true,
+    description:true,
+    actionText:true,
+    heading:true,
+    errorText:true,
+    rejectReason:true,
+    helperText:true,
+    secondaryInstruction:true
 }
 
-const USE_TRANSITION_IMPORT_PATH = "src/hooks/i18n";
+const USE_I18N_IMPORT_PATH = "src/hooks/useI18n";
 
 module.exports = {
     RENDER_ATTRS,
     RENDER_ATTRS_BY_TAG,
-    USE_TRANSITION_IMPORT_PATH
+    USE_I18N_IMPORT_PATH
 }

@@ -1,10 +1,13 @@
 const {
   isAttributeRenderable,
   createUseTransitionCall,
-  checkAndAddTransitionImport,
+  checkAndAddI18nImport,
+  checkAndAddI18nInstance,
   containsLink,
   processLabelProperty,
-  findAndProcessOptionsArray
+  findAndProcessOptionsArray,
+  isVariableInitializedWithString,
+  isVariableInitializedWithArray,
 } = require("../utils");
 
 const transform = (fileInfo, api, options) => {
@@ -45,7 +48,7 @@ const transform = (fileInfo, api, options) => {
         );
       }
 
-      // Apply useTransition call on the string literals if they exist
+      // Apply useI18n call on the string literals if they exist
       if (consequentVal && !containsLink(consequentVal)) {
         expression.consequent = jscodeshift.jsxExpressionContainer(
           createUseTransitionCall(consequentVal)
@@ -61,11 +64,11 @@ const transform = (fileInfo, api, options) => {
     return expression;
   };
 
-//   root.find(jscodeshift.VariableDeclaration).forEach((path)=> {
-//     if(path.node.init.type === 'ArrayExpression'){
-//         if(path.node.)
-//     }
-//   })
+  //   root.find(jscodeshift.VariableDeclaration).forEach((path)=> {
+  //     if(path.node.init.type === 'ArrayExpression'){
+  //         if(path.node.)
+  //     }
+  //   })
 
   root.find(jscodeshift.JSXElement).forEach((path) => {
     const { children } = path.node;
@@ -82,8 +85,9 @@ const transform = (fileInfo, api, options) => {
             createUseTransitionCall(trimmedValue)
           );
 
-          // add import for useTransition if not added already
-          checkAndAddTransitionImport(root);
+          // add import for useI18n if not added already
+          checkAndAddI18nImport(root);
+          checkAndAddI18nInstance(root);
         }
       } else if (child.type === "JSXExpressionContainer") {
         if (child.expression.type === "TemplateLiteral") {
@@ -91,13 +95,14 @@ const transform = (fileInfo, api, options) => {
           child.expression.quasis.forEach((expVal, index) => {
             const trimmedExpressionValue = expVal.value.raw.trim();
             if (trimmedExpressionValue) {
-              // Push the useTransition call as an expression
+              // Push the useI18n call as an expression
               newExpressions.push(
                 createUseTransitionCall(trimmedExpressionValue)
               );
 
-              // Add import for useTransition if not added already
-              checkAndAddTransitionImport(root);
+              // Add import for useI18n if not added already
+              checkAndAddI18nImport(root);
+              checkAndAddI18nInstance(root);
             }
 
             if (child.expression.expressions[index]) {
@@ -155,7 +160,8 @@ const transform = (fileInfo, api, options) => {
         const trimmedExpressionValue = expVal.value.raw.trim();
         if (trimmedExpressionValue) {
           newExpressions.push(createUseTransitionCall(trimmedExpressionValue));
-          checkAndAddTransitionImport(root);
+          checkAndAddI18nImport(root);
+          checkAndAddI18nInstance(root);
         }
         if (path.node.expression.expressions[index]) {
           let expr = path.node.expression.expressions[index];
@@ -201,6 +207,124 @@ const transform = (fileInfo, api, options) => {
     }
   });
 
+  // Check if the variable is visibly used in JSX (not just used but actually rendered)
+  const isVariableVisibleInUI = (j, root, variableName) => {
+    return root
+      .find(j.JSXExpressionContainer)
+      .filter((path) => {
+        // Ensure the JSXExpression is part of a visible tag (not a fragment, etc.
+        const parent = path.parentPath;
+        if (parent.node.type === "JSXElement") {
+          const openingElement = parent.node.openingElement;
+          if (openingElement) {
+            return true;
+          }
+        }
+        return false;
+      })
+      .some((path) => {
+        // Find if the variable (Identifier) is used inside this JSXExpression
+        return j(path)
+          .find(j.Identifier)
+          .some((id) => id.node.name === variableName);
+      });
+  };
+
+  // replace the variable array which we are using in jsx
+  root
+    .find(jscodeshift.VariableDeclarator)
+    .filter(isVariableInitializedWithArray(jscodeshift))
+    .forEach((path) => {
+      const variableName = path.node.id.name;
+      const init = path.node.init;
+
+      if (
+        init.type === "ArrayExpression" &&
+        isVariableVisibleInUI(jscodeshift, root, variableName)
+      ) {
+        const elements = init.elements;
+
+        if (elements.length > 0) {
+          const transformedElements = elements
+            .filter(
+              (element) =>
+                element.type === "Literal" || element.type === "StringLiteral"
+            )
+            .map((element) => {
+              const trimmedValue = element.value.trim();
+              return trimmedValue
+                ? createUseTransitionCall(trimmedValue)
+                : null;
+            })
+            .filter(Boolean);
+
+          if (transformedElements.length > 0) {
+            path.node.init = jscodeshift.arrayExpression(transformedElements);
+            checkAndAddI18nImport(root);
+          }
+        }
+      }
+    });
+
+  
+    
+
+  // replace the variable string which we are using in jsx
+
+  root
+    .find(jscodeshift.VariableDeclarator)
+    .filter(isVariableInitializedWithString(jscodeshift))
+    .forEach((path) => {
+      const variableName = path.node.id.name;
+      const init = path.node.init;
+
+      if (
+        (init.type === "StringLiteral" ||
+          (init.type === "Literal" && typeof init.value === "string")) &&
+        isVariableVisibleInUI(jscodeshift, root, variableName)
+      ) {
+        const trimmedValue = init.value.trim();
+        if (trimmedValue) {
+          // Replace the initializer with createUseTransition() call
+          path.node.init = createUseTransitionCall(trimmedValue);
+          // Add import for useTransition if not added already
+          checkAndAddI18nImport(root);
+        }
+      } else if (
+        init.type === "TemplateLiteral" &&
+        isVariableVisibleInUI(jscodeshift, root, variableName)
+      ) {
+        const newExpressions = [];
+        path.node.init.quasis.forEach((expVal, index) => {
+          const trimmedExpressionValue = expVal.value.raw.trim();
+          if (trimmedExpressionValue) {
+            newExpressions.push(
+              createUseTransitionCall(trimmedExpressionValue)
+            );
+            checkAndAddI18nImport(root);
+            checkAndAddI18nInstance(root);
+          }
+          if (path.node.init.expressions[index]) {
+            let expr = path.node.init.expressions[index];
+            if (expr.type === "ConditionalExpression") {
+              expr = transformConditionalExpression(expr);
+            }
+            newExpressions.push(expr);
+          }
+        });
+
+        path.node.init = jscodeshift.templateLiteral(
+          newExpressions.map((exp, i) =>
+            jscodeshift.templateElement(
+              { raw: "", cooked: "" },
+              i === newExpressions.length - 1
+            )
+          ),
+          newExpressions
+        );
+      }
+    });
+
   root.find(jscodeshift.JSXAttribute).forEach((path) => {
     const elementPath = path.parentPath.parentPath;
     const elementName = elementPath.node.name.name;
@@ -222,8 +346,9 @@ const transform = (fileInfo, api, options) => {
             createUseTransitionCall(trimmedAttributeValue)
           );
 
-          // add import for useTransition if not added already
-          checkAndAddTransitionImport(root);
+          // add import for useI18n if not added already
+          checkAndAddI18nImport(root);
+          checkAndAddI18nInstance(root);
         }
       }
 
@@ -241,8 +366,9 @@ const transform = (fileInfo, api, options) => {
               trimmedExpressionValue
             );
 
-            // add import for useTransition if not added already
-            checkAndAddTransitionImport(root);
+            // add import for useI18n if not added already
+            checkAndAddI18nImport(root);
+            checkAndAddI18nInstance(root);
           }
         }
       }
