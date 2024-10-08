@@ -18,7 +18,7 @@ const isAttributeRenderable = (tag, attribute) => {
 };
 
 // returns true if text is a link
-function containsLink(text) {
+const containsLink = (text)=> {
   const urlPattern = /(https?:\/\/[^\s]+)/g;
   return urlPattern.test(text);
 }
@@ -41,7 +41,7 @@ const getTranslationLabel = (label) => {
       .join("_");
 }
 
-// Adds `import { useI18n } from 'src/hooks/usei18n';` in the file that is getting processed
+// adds `import { useI18n } from 'src/hooks/usei18n';` in the file that is getting processed
 const checkAndAddI18nImport = (root) => {
   // Add the `useI18n` import if it doesn't exist
   const isImportPresent =
@@ -56,11 +56,13 @@ const checkAndAddI18nImport = (root) => {
       [jscodeshift.importSpecifier(jscodeshift.identifier("useI18n"))],
       jscodeshift.literal(USE_I18N_IMPORT_PATH)
     );
+    const topElem = root.get().node.program.body.shift(); // for `@flow strict`
     root.get().node.program.body.unshift(useI18nImport);
+    root.get().node.program.body.unshift(topElem);
   }
 };
 
-// Check if the component contains static string literals (inside JSX)
+// check if the component contains static string literals (inside JSX)
 const hasStaticStringLiterals = (path) => {
   const jsxElements = jscodeshift(path).find(jscodeshift.JSXElement);
 
@@ -90,7 +92,7 @@ const hasStaticStringLiterals = (path) => {
   });
 };
 
-// Handles component types (arrow functions and function declarations)
+// handles component types (arrow functions and function declarations)
 const checkAndAddI18nInstance = (root) => {
   // Handle components declared as arrow functions
   root.find(jscodeshift.VariableDeclaration).forEach((path) => {
@@ -102,7 +104,7 @@ const checkAndAddI18nInstance = (root) => {
       ) {
         const componentBody = declaration.init.body;
 
-        // If the component contains static labels, add i18n instance
+        // if the component contains static labels, add i18n instance
         if (hasStaticStringLiterals(path)) {
           addI18nInstanceIfNeeded(componentBody);
         }
@@ -110,22 +112,21 @@ const checkAndAddI18nInstance = (root) => {
     });
   });
 
-  // Handle components declared using function declarations
+  // handle components declared using function declarations
   root.find(jscodeshift.FunctionDeclaration).forEach((path) => {
     const componentBody = path.node.body;
 
-    // If the component contains static labels, add i18n instance
     if (hasStaticStringLiterals(path)) {
       addI18nInstanceIfNeeded(componentBody);
     }
   });
 };
 
-// Adds the i18n instance if not present
+// adds the i18n instance if not present
 const addI18nInstanceIfNeeded = (componentBody) => {
   const bodyStatements = componentBody.body;
 
-  // Check if either variable already exists
+  // check if either variable already exists
   const hasLabelI18nInstance = bodyStatements.some(
     (statement) =>
       statement.type === "VariableDeclaration" &&
@@ -140,7 +141,7 @@ const addI18nInstanceIfNeeded = (componentBody) => {
       statement.declarations.some((decl) => decl.id.name === "t")
   );
 
-  // Only add the i18n lines if they don't exist already
+  // only add the i18n lines if they don't exist already
   if (!hasLabelI18nInstance) {
     const labelI18nInstanceStatement = jscodeshift.variableDeclaration(
       "const",
@@ -194,34 +195,74 @@ const isVariableInitializedWithString = (j) => (path) => {
   const init = path.node.init;
   if (!init) return false;
 
-  switch (init.type) {
-      case 'StringLiteral':
-          return true;
-      case 'Literal':
-          return typeof init.value === 'string';
-      case 'TemplateLiteral':
-          return init.expressions.length === 0;
-      case 'BinaryExpression':
-          return init.operator === '+' && 
-                 (isStringExpression(j)(init.left) || isStringExpression(j)(init.right));
-      default:
-          return false;
-  }
+  return isStringExpression(j)(init);
 };
+
+  // based on the object name, finding the variable if label exists, change it
+  const findAndProcessOptionsArray=(objectName, root)=>{
+    // find the object with the same name as the options attribute's expression
+    root
+        .find(jscodeshift.VariableDeclarator, { id: { name: objectName } })
+        .forEach((variablePath) => {
+            // ensure that the variable has an init property
+            if (variablePath.node.init && variablePath.node.init.type === 'ArrayExpression') {
+                const { elements } = variablePath.node.init;
+
+                elements.forEach((element) => {
+                    // check if the element is an ObjectExpression
+                    if (element.type === 'ObjectExpression') {
+                        const { properties } = element;
+
+                        if (properties) {
+                            processLabelProperty(properties, root);
+                        }
+                    }
+                });
+            }
+            else if (variablePath.node.init.type === 'ObjectExpression')
+            {
+                const { properties } = variablePath.node.init;
+                processLabelProperty(properties, root);
+            }
+    });
+}
+
+// process the label for the passed properties
+const processLabelProperty=(properties, root)=> {
+  properties.forEach((property) => {
+      // check if the property contains the 'label' key and it's a literal string
+      if (property.key && property.key.name === 'label' && property.value.type === 'Literal') {
+          const labelValue = property.value.value.trim();
+
+          if (labelValue) {
+              // apply the translation only to labels in the values array
+              property.value = createUseTransitionCall(labelValue);
+              checkAndAddI18nImport(root);
+              checkAndAddI18nInstance(root);
+          }
+      }
+  });
+}
+
 
 // helper function
 const isStringExpression = (j) => (node) => {
+  if (!node) return false;
+
   switch (node.type) {
-      case 'StringLiteral':
-      case 'TemplateLiteral':
-          return true;
-      case 'Literal':
-          return typeof node.value === 'string';
-      case 'BinaryExpression':
-          return node.operator === '+' && 
-                 (isStringExpression(j)(node.left) || isStringExpression(j)(node.right));
-      default:
-          return false;
+    case "StringLiteral": // Handles string literals (e.g., 'Hello')
+      return true;
+    case "Literal": // For older parsers, or if `Literal` is used
+      return typeof node.value === "string";
+    case "TemplateLiteral": // Handles template literals with or without expressions
+      return true;
+    case "BinaryExpression": // Handles string concatenations (e.g., 'a' + 'b')
+      if (node.operator === "+") {
+        return (
+          isStringExpression(j)(node.left) && isStringExpression(j)(node.right)
+        );
+      }
+      return false;
   }
 };
 
@@ -237,6 +278,46 @@ const isVariableInitializedWithArray = (j)=>(path) => {
     return false;
 };
 
+const transformConditionalExpression = (expression) => {
+    if (expression.type === "ConditionalExpression") {
+      const consequentVal =
+        expression.consequent.type === "Literal" &&
+        typeof expression.consequent.value === "string"
+          ? expression.consequent.value.trim()
+          : null;
+      const alternateVal =
+        expression.alternate.type === "Literal" &&
+        typeof expression.alternate.value === "string"
+          ? expression.alternate.value.trim()
+          : null;
+
+      // If the consequent or alternate is another conditional expression, recursively handle it
+      if (expression.consequent.type === "ConditionalExpression") {
+        expression.consequent = transformConditionalExpression(
+          expression.consequent
+        );
+      }
+      if (expression.alternate.type === "ConditionalExpression") {
+        expression.alternate = transformConditionalExpression(
+          expression.alternate
+        );
+      }
+
+      // Apply useI18n call on the string literals if they exist
+      if (consequentVal && !containsLink(consequentVal)) {
+        expression.consequent = jscodeshift.jsxExpressionContainer(
+          createUseTransitionCall(consequentVal)
+        );
+      }
+      if (alternateVal && !containsLink(alternateVal)) {
+        expression.alternate = jscodeshift.jsxExpressionContainer(
+          createUseTransitionCall(alternateVal)
+        );
+      }
+    }
+
+    return expression;
+  };
 
 module.exports = {
   isAttributeRenderable,
@@ -247,4 +328,7 @@ module.exports = {
   isVariableInitializedWithString,
   isVariableInitializedWithArray,
   containsLink,
+  processLabelProperty,
+  findAndProcessOptionsArray,
+  transformConditionalExpression,
 };

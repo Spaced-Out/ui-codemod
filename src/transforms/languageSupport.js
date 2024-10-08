@@ -4,74 +4,21 @@ const {
   checkAndAddI18nImport,
   checkAndAddI18nInstance,
   containsLink,
+  processLabelProperty,
+  findAndProcessOptionsArray,
   isVariableInitializedWithString,
   isVariableInitializedWithArray,
+  transformConditionalExpression,
 } = require("../utils");
 
 const transform = (fileInfo, api, options) => {
   const { jscodeshift } = api;
   const root = jscodeshift(fileInfo.source);
 
-  const transformOptionsArray = (array) => {
-    array.forEach((item) => {
-      if (item.label && typeof item.label === "string") {
-        // Replace the label with createUseTransitionCall
-        item.label = createUseTransitionCall(item.label);
-      }
-    });
-  };
-
-  const transformConditionalExpression = (expression) => {
-    if (expression.type === "ConditionalExpression") {
-      const consequentVal =
-        expression.consequent.type === "Literal" &&
-        typeof expression.consequent.value === "string"
-          ? expression.consequent.value.trim()
-          : null;
-      const alternateVal =
-        expression.alternate.type === "Literal" &&
-        typeof expression.alternate.value === "string"
-          ? expression.alternate.value.trim()
-          : null;
-
-      // If the consequent or alternate is another conditional expression, recursively handle it
-      if (expression.consequent.type === "ConditionalExpression") {
-        expression.consequent = transformConditionalExpression(
-          expression.consequent
-        );
-      }
-      if (expression.alternate.type === "ConditionalExpression") {
-        expression.alternate = transformConditionalExpression(
-          expression.alternate
-        );
-      }
-
-      // Apply useI18n call on the string literals if they exist
-      if (consequentVal && !containsLink(consequentVal)) {
-        expression.consequent = jscodeshift.jsxExpressionContainer(
-          createUseTransitionCall(consequentVal)
-        );
-      }
-      if (alternateVal && !containsLink(alternateVal)) {
-        expression.alternate = jscodeshift.jsxExpressionContainer(
-          createUseTransitionCall(alternateVal)
-        );
-      }
-    }
-
-    return expression;
-  };
-
-  //   root.find(jscodeshift.VariableDeclaration).forEach((path)=> {
-  //     if(path.node.init.type === 'ArrayExpression'){
-  //         if(path.node.)
-  //     }
-  //   })
-
   root.find(jscodeshift.JSXElement).forEach((path) => {
     const { children } = path.node;
 
-    // Plain text present inside the JSX opening and closing element
+    // plain text present inside the JSX opening and closing element
     // eg: <button>Save</button>
     children.forEach((child, index) => {
       if (child.type === "JSXText") {
@@ -85,6 +32,7 @@ const transform = (fileInfo, api, options) => {
 
           // add import for useI18n if not added already
           checkAndAddI18nImport(root);
+          // add extraction steps for 't' function if not added already
           checkAndAddI18nInstance(root);
         }
       } else if (child.type === "JSXExpressionContainer") {
@@ -93,12 +41,10 @@ const transform = (fileInfo, api, options) => {
           child.expression.quasis.forEach((expVal, index) => {
             const trimmedExpressionValue = expVal.value.raw.trim();
             if (trimmedExpressionValue) {
-              // Push the useI18n call as an expression
+              // push the useI18n call as an expression
               newExpressions.push(
                 createUseTransitionCall(trimmedExpressionValue)
               );
-
-              // Add import for useI18n if not added already
               checkAndAddI18nImport(root);
               checkAndAddI18nInstance(root);
             }
@@ -106,13 +52,14 @@ const transform = (fileInfo, api, options) => {
             if (child.expression.expressions[index]) {
               let expr = child.expression.expressions[index];
               if (expr.type === "ConditionalExpression") {
+                // this function is to handle nested conditional expressions
                 expr = transformConditionalExpression(expr);
               }
               newExpressions.push(expr);
             }
           });
 
-          // Replace the old template literal with the new expressions
+          // replace the old template literal with the new expressions
           child.expression = jscodeshift.templateLiteral(
             newExpressions.map((exp, i) =>
               jscodeshift.templateElement(
@@ -152,7 +99,6 @@ const transform = (fileInfo, api, options) => {
 
   root.find(jscodeshift.JSXExpressionContainer).forEach((path) => {
     if (path.node.expression.type === "TemplateLiteral") {
-      // Template literal logic
       const newExpressions = [];
       path.node.expression.quasis.forEach((expVal, index) => {
         const trimmedExpressionValue = expVal.value.raw.trim();
@@ -205,12 +151,12 @@ const transform = (fileInfo, api, options) => {
     }
   });
 
-  // Check if the variable is visibly used in JSX (not just used but actually rendered)
+  // check if the variable is visibly used in JSX (not just used but actually rendered)
   const isVariableVisibleInUI = (j, root, variableName) => {
     return root
       .find(j.JSXExpressionContainer)
       .filter((path) => {
-        // Ensure the JSXExpression is part of a visible tag (not a fragment, etc.
+        // ensure the JSXExpression is part of a visible tag (not a fragment, etc.)
         const parent = path.parentPath;
         if (parent.node.type === "JSXElement") {
           const openingElement = parent.node.openingElement;
@@ -221,7 +167,7 @@ const transform = (fileInfo, api, options) => {
         return false;
       })
       .some((path) => {
-        // Find if the variable (Identifier) is used inside this JSXExpression
+        // find if the variable (Identifier) is used inside this JSXExpression
         return j(path)
           .find(j.Identifier)
           .some((id) => id.node.name === variableName);
@@ -259,16 +205,105 @@ const transform = (fileInfo, api, options) => {
           if (transformedElements.length > 0) {
             path.node.init = jscodeshift.arrayExpression(transformedElements);
             checkAndAddI18nImport(root);
+            checkAndAddI18nInstance(root);
           }
         }
       }
     });
 
-  
-    
+  // Function to determine if a variable is used as attribute
+  const isAttrituteVisibleInUI = (j, root, variableName) => {
+    return root.find(j.JSXElement).some((jsxElement) => {
+      const tagName = jsxElement.node.openingElement.name.name;
+
+      // Check attributes for renderable attributes that use the variable
+      const hasRenderableAttributeWithVariable = j(jsxElement)
+        .find(j.JSXAttribute)
+        .some((attribute) => {
+          const attributeName = attribute.node.name.name;
+
+          // Only consider the attribute if it's renderable
+          if (isAttributeRenderable(tagName, attributeName)) {
+            // Check if the attribute has a JSXExpressionContainer
+            if (
+              attribute.node.value &&
+              attribute.node.value.type === "JSXExpressionContainer"
+            ) {
+              // Search for variable in the identifier inside the expression container
+              return j(attribute.node.value)
+                .find(j.Identifier)
+                .some((id) => id.node.name === variableName);
+            }
+          }
+          return false; // Return false for non-renderable attributes
+        });
+
+      // Return true only if we found a renderable attribute that uses the variable
+      return hasRenderableAttributeWithVariable;
+    });
+  };
+
+  // Function to process binary expressions and replace string literals
+const processBinaryExpression = (j, node) => {
+  const newExpressions = [];
+
+  const processNode = (currentNode) => {
+    // If it's a BinaryExpression, recursively process the left and right sides
+    if (currentNode.type === "BinaryExpression" && currentNode.operator === "+") {
+      processNode(currentNode.left);
+      processNode(currentNode.right);
+    } 
+    // If it's a string literal or template literal, replace it
+    else if (
+      currentNode.type === "StringLiteral" ||
+      (currentNode.type === "Literal" && typeof currentNode.value === "string")
+    ) {
+      const trimmedValue = currentNode.value.trim();
+      if (trimmedValue) {
+        newExpressions.push(createUseTransitionCall(trimmedValue));
+        checkAndAddI18nImport(root);
+      }
+    } 
+    // If it's a template literal, replace the quasis and expressions
+    else if (currentNode.type === "TemplateLiteral") {
+      currentNode.quasis.forEach((quasi, index) => {
+        const trimmedQuasiValue = quasi.value.raw.trim();
+        if (trimmedQuasiValue) {
+          newExpressions.push(createUseTransitionCall(trimmedQuasiValue));
+          checkAndAddI18nImport(root);
+        }
+        if (currentNode.expressions[index]) {
+          let expr = currentNode.expressions[index];
+          newExpressions.push(expr); // Push the expression as is
+        }
+      });
+    } 
+    // For other types, such as function calls, push the node as is
+    else {
+      newExpressions.push(currentNode);
+    }
+  };
+
+  // Start processing the binary expression
+  processNode(node);
+
+  // Rebuild the binary expression with transformed parts
+  return newExpressions.reduce((left, right) => {
+    return j.binaryExpression("+", left, right);
+  });
+};
+
+// Main transformation logic
+root.find(jscodeshift.VariableDeclarator).forEach((path) => {
+  const init = path.node.init;
+
+  // Only process binary expressions
+  if (init && init.type === "BinaryExpression" && init.operator === "+") {
+    path.node.init = processBinaryExpression(jscodeshift, init);
+  }
+});
 
   // replace the variable string which we are using in jsx
-
   root
     .find(jscodeshift.VariableDeclarator)
     .filter(isVariableInitializedWithString(jscodeshift))
@@ -279,15 +314,50 @@ const transform = (fileInfo, api, options) => {
       if (
         (init.type === "StringLiteral" ||
           (init.type === "Literal" && typeof init.value === "string")) &&
-        isVariableVisibleInUI(jscodeshift, root, variableName)
+        (isVariableVisibleInUI(jscodeshift, root, variableName) ||
+          isAttrituteVisibleInUI(jscodeshift, root, variableName))
       ) {
         const trimmedValue = init.value.trim();
         if (trimmedValue) {
-          // Replace the initializer with createUseTransition() call
+          // replace the initializer with createUseTransition() call
           path.node.init = createUseTransitionCall(trimmedValue);
-          // Add import for useTransition if not added already
           checkAndAddI18nImport(root);
+          checkAndAddI18nInstance(root);
         }
+      } else if (
+        init.type === "TemplateLiteral" &&
+        isVariableVisibleInUI(jscodeshift, root, variableName) &&
+        (isVariableVisibleInUI(jscodeshift, root, variableName) ||
+          isAttrituteVisibleInUI(jscodeshift, root, variableName))
+      ) {
+        const newExpressions = [];
+        path.node.init.quasis.forEach((expVal, index) => {
+          const trimmedExpressionValue = expVal.value.raw.trim();
+          if (trimmedExpressionValue) {
+            newExpressions.push(
+              createUseTransitionCall(trimmedExpressionValue)
+            );
+            checkAndAddI18nImport(root);
+            checkAndAddI18nInstance(root);
+          }
+          if (path.node.init.expressions[index]) {
+            let expr = path.node.init.expressions[index];
+            if (expr.type === "ConditionalExpression") {
+              expr = transformConditionalExpression(expr);
+            }
+            newExpressions.push(expr);
+          }
+        });
+
+        path.node.init = jscodeshift.templateLiteral(
+          newExpressions.map((exp, i) =>
+            jscodeshift.templateElement(
+              { raw: "", cooked: "" },
+              i === newExpressions.length - 1
+            )
+          ),
+          newExpressions
+        );
       }
     });
 
@@ -312,7 +382,6 @@ const transform = (fileInfo, api, options) => {
             createUseTransitionCall(trimmedAttributeValue)
           );
 
-          // add import for useI18n if not added already
           checkAndAddI18nImport(root);
           checkAndAddI18nInstance(root);
         }
@@ -332,10 +401,129 @@ const transform = (fileInfo, api, options) => {
               trimmedExpressionValue
             );
 
-            // add import for useI18n if not added already
             checkAndAddI18nImport(root);
             checkAndAddI18nInstance(root);
           }
+        }
+      }
+    }
+  });
+
+  // finds the ObjectExpression nodes within the JSXElement to transform 'label' properties
+  root.find(jscodeshift.JSXElement).forEach((path) => {
+    jscodeshift(path)
+      .find(jscodeshift.ObjectExpression)
+      .forEach((objectPath) => {
+        const { properties } = objectPath.node;
+
+        if (properties) {
+          processLabelProperty(properties, root);
+        }
+      });
+  });
+
+  root.find(jscodeshift.VariableDeclaration).forEach((path) => {
+    jscodeshift(path)
+      .find(jscodeshift.ObjectExpression)
+      .forEach((objectPath) => {
+        const { properties } = objectPath.node;
+
+        if (properties) {
+          processLabelProperty(properties, root);
+        }
+      });
+  });
+
+  // if the label is not passed directly
+  root.find(jscodeshift.JSXElement).forEach((elementPath) => {
+    const menuAttr = jscodeshift(elementPath)
+      .find(jscodeshift.JSXAttribute, { name: { name: "menu" } })
+      .find(jscodeshift.ObjectExpression)
+      .paths()[0];
+
+    // handling ObjectExpression inside menu attribute
+    if (menuAttr) {
+      // if a menu attribute with ObjectExpression is found, process it
+      const optionsProp = menuAttr.node.properties.find(
+        (prop) => prop.key && prop.key.name === "options"
+      );
+
+      if (optionsProp && optionsProp.value.type === "ObjectExpression") {
+        const propsUnderObj = optionsProp.value.properties;
+
+        if (propsUnderObj.length > 0) {
+          const objectName = propsUnderObj[0].value.name;
+          findAndProcessOptionsArray(objectName, root);
+        }
+      }
+
+      const groupTitleOptionsProp = menuAttr.node.properties.find(
+        (prop) => prop.key && prop.key.name === "groupTitleOptions"
+      );
+
+      if (
+        groupTitleOptionsProp &&
+        groupTitleOptionsProp.value.type === "ArrayExpression"
+      ) {
+        groupTitleOptionsProp.value.elements.forEach((elem) => {
+          if (elem && elem.key && elem.key.name === "options") {
+            elem.value.elements.forEach((optionObj) => {
+              const propsUnderObj = optionObj.value.properties;
+
+              if (propsUnderObj.length > 0) {
+                const objectName = propsUnderObj[0].value.name;
+                findAndProcessOptionsArray(objectName, root);
+              }
+            });
+          }
+        });
+      }
+    } else {
+      //  handling JSX options attribute
+      const optionsAttr = jscodeshift(elementPath)
+        .find(jscodeshift.JSXAttribute, { name: { name: "options" } })
+        .paths()[0];
+
+      const groupTitleOptionsAttr = jscodeshift(elementPath)
+        .find(jscodeshift.JSXAttribute, { name: { name: "groupTitleOptions" } })
+        .paths()[0];
+
+      if (optionsAttr) {
+        const attributeValue = optionsAttr.node.value;
+
+        if (
+          attributeValue &&
+          attributeValue.type === "JSXExpressionContainer" &&
+          attributeValue.expression
+        ) {
+          const objectName = attributeValue.expression.name;
+          findAndProcessOptionsArray(objectName, root);
+        }
+      }
+
+      if (groupTitleOptionsAttr) {
+        const attributeValue = groupTitleOptionsAttr.node.value;
+
+        if (
+          attributeValue &&
+          attributeValue.type === "JSXExpressionContainer" &&
+          attributeValue.expression &&
+          attributeValue.expression.type === "ArrayExpression"
+        ) {
+          attributeValue.expression.elements.forEach((elem) => {
+            elem.properties.forEach((objExpr) => {
+              if (objExpr && objExpr.key && objExpr.key.name === "options") {
+                objExpr.value.elements.forEach((optionObj) => {
+                  const propsUnderObj = optionObj.properties;
+
+                  if (propsUnderObj.length > 0) {
+                    const objectName = propsUnderObj[0].value.name;
+                    findAndProcessOptionsArray(objectName, root);
+                  }
+                });
+              }
+            });
+          });
         }
       }
     }
