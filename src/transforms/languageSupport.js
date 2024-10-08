@@ -327,6 +327,18 @@ const transform = (fileInfo, api, options) => {
       });
   });
 
+  root.find(jscodeshift.VariableDeclaration).forEach((path) => {
+    jscodeshift(path)
+      .find(jscodeshift.ObjectExpression)
+      .forEach((objectPath) => {
+        const { properties } = objectPath.node;
+
+        if (properties) {
+          processLabelProperty(properties, root);
+        }
+      });
+  });
+
   // if the label is not passed directly
   root.find(jscodeshift.JSXElement).forEach((elementPath) => {
     const menuAttr = jscodeshift(elementPath)
@@ -349,10 +361,36 @@ const transform = (fileInfo, api, options) => {
           findAndProcessOptionsArray(objectName, root);
         }
       }
+
+      const groupTitleOptionsProp = menuAttr.node.properties.find(
+        (prop) => prop.key && prop.key.name === "groupTitleOptions"
+      );
+
+      if (
+        groupTitleOptionsProp &&
+        groupTitleOptionsProp.value.type === "ArrayExpression"
+      ) {
+        groupTitleOptionsProp.value.elements.forEach((elem) => {
+          if (elem && elem.key && elem.key.name === "options") {
+            elem.value.elements.forEach((optionObj) => {
+              const propsUnderObj = optionObj.value.properties;
+
+              if (propsUnderObj.length > 0) {
+                const objectName = propsUnderObj[0].value.name;
+                findAndProcessOptionsArray(objectName, root);
+              }
+            });
+          }
+        });
+      }
     } else {
       //  handling JSX options attribute
       const optionsAttr = jscodeshift(elementPath)
         .find(jscodeshift.JSXAttribute, { name: { name: "options" } })
+        .paths()[0];
+
+      const groupTitleOptionsAttr = jscodeshift(elementPath)
+        .find(jscodeshift.JSXAttribute, { name: { name: "groupTitleOptions" } })
         .paths()[0];
 
       if (optionsAttr) {
@@ -365,6 +403,32 @@ const transform = (fileInfo, api, options) => {
         ) {
           const objectName = attributeValue.expression.name;
           findAndProcessOptionsArray(objectName, root);
+        }
+      }
+
+      if (groupTitleOptionsAttr) {
+        const attributeValue = groupTitleOptionsAttr.node.value;
+
+        if (
+          attributeValue &&
+          attributeValue.type === "JSXExpressionContainer" &&
+          attributeValue.expression &&
+          attributeValue.expression.type === "ArrayExpression"
+        ) {
+          attributeValue.expression.elements.forEach((elem) => {
+            elem.properties.forEach((objExpr) => {
+              if (objExpr && objExpr.key && objExpr.key.name === "options") {
+                objExpr.value.elements.forEach((optionObj) => {
+                  const propsUnderObj = optionObj.properties;
+
+                  if (propsUnderObj.length > 0) {
+                    const objectName = propsUnderObj[0].value.name;
+                    findAndProcessOptionsArray(objectName, root);
+                  }
+                });
+              }
+            });
+          });
         }
       }
     }
