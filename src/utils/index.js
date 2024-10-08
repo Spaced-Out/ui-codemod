@@ -335,6 +335,6 @@ module.exports = {
   isVariableInitializedWithArray,
   containsLink,
   processLabelProperty,
-  findAndProcessOptionsArray
+  findAndProcessOptionsArray,
   transformConditionalExpression,
 };
