@@ -92,7 +92,21 @@ const transform = (fileInfo, api, options) => {
           }
         } else if (child.expression.type === "ConditionalExpression") {
           child.expression = transformConditionalExpression(child.expression);
+        } else if (child.expression.type === "Literal") {
+          const trimmedExpressionValue = child.expression.value?.trim();
+        
+          if (typeof child.expression.value === "string" && trimmedExpressionValue) {
+            // Replace the Literal with the useI18n translation call
+            path.node.children[index] = jscodeshift.jsxExpressionContainer(
+              createUseTransitionCall(trimmedExpressionValue)
+            );
+        
+            // Add the necessary imports and i18n setup
+            checkAndAddI18nImport(root);
+            checkAndAddI18nInstance(root);
+          }
         }
+        
       }
     });
   });
@@ -173,6 +187,46 @@ const transform = (fileInfo, api, options) => {
           .some((id) => id.node.name === variableName);
       });
   };
+  
+  //return if array is used in jsx but not in methods which return bool(like "includes")
+  const  isArrayVisibleInUI= (j, root, variableName) => {
+    return root
+      .find(j.JSXExpressionContainer)
+      .filter((path) => {
+        const parent = path.parentPath;
+        if (parent.node.type === "JSXElement") {
+          const openingElement = parent.node.openingElement;
+          if (openingElement) {
+            return true;
+          }
+        }
+        return false;
+      })
+      .some((path) => {
+        const isVariableUsed = j(path)
+          .find(j.Identifier)
+          .some((id) => id.node.name === variableName);
+  
+        if (isVariableUsed) {
+          // Check if the variable is used with boolean-returning array methods
+          const booleanReturningMethods = ["some", "every", "includes"];
+  
+          return !j(path)
+            .find(j.CallExpression)
+            .some((callExp) => {
+              const callee = callExp.node.callee;
+
+              return callee.type === "MemberExpression" &&
+                callee.object.name === variableName &&
+                booleanReturningMethods.includes(callee.property.name);
+            });
+        }
+  
+        return false;
+      });
+  };
+  
+
 
   // replace the variable array which we are using in jsx
   root
@@ -184,7 +238,7 @@ const transform = (fileInfo, api, options) => {
 
       if (
         init.type === "ArrayExpression" &&
-        isVariableVisibleInUI(jscodeshift, root, variableName)
+        isArrayVisibleInUI(jscodeshift, root, variableName)
       ) {
         const elements = init.elements;
 
@@ -215,93 +269,79 @@ const transform = (fileInfo, api, options) => {
   const isAttrituteVisibleInUI = (j, root, variableName) => {
     return root.find(j.JSXElement).some((jsxElement) => {
       const tagName = jsxElement.node.openingElement.name.name;
-
-      // Check attributes for renderable attributes that use the variable
       const hasRenderableAttributeWithVariable = j(jsxElement)
         .find(j.JSXAttribute)
         .some((attribute) => {
           const attributeName = attribute.node.name.name;
-
-          // Only consider the attribute if it's renderable
           if (isAttributeRenderable(tagName, attributeName)) {
-            // Check if the attribute has a JSXExpressionContainer
             if (
               attribute.node.value &&
               attribute.node.value.type === "JSXExpressionContainer"
             ) {
-              // Search for variable in the identifier inside the expression container
               return j(attribute.node.value)
                 .find(j.Identifier)
                 .some((id) => id.node.name === variableName);
             }
           }
-          return false; // Return false for non-renderable attributes
+          return false; 
         });
-
-      // Return true only if we found a renderable attribute that uses the variable
       return hasRenderableAttributeWithVariable;
     });
   };
 
   // Function to process binary expressions and replace string literals
-const processBinaryExpression = (j, node) => {
-  const newExpressions = [];
+  const processBinaryExpression = (j, node) => {
+    const newExpressions = [];
 
-  const processNode = (currentNode) => {
-    // If it's a BinaryExpression, recursively process the left and right sides
-    if (currentNode.type === "BinaryExpression" && currentNode.operator === "+") {
-      processNode(currentNode.left);
-      processNode(currentNode.right);
-    } 
-    // If it's a string literal or template literal, replace it
-    else if (
-      currentNode.type === "StringLiteral" ||
-      (currentNode.type === "Literal" && typeof currentNode.value === "string")
-    ) {
-      const trimmedValue = currentNode.value.trim();
-      if (trimmedValue) {
-        newExpressions.push(createUseTransitionCall(trimmedValue));
-        checkAndAddI18nImport(root);
+    const processNode = (currentNode) => {
+      if (
+        currentNode.type === "BinaryExpression" &&
+        currentNode.operator === "+"
+      ) {
+        processNode(currentNode.left);
+        processNode(currentNode.right);
       }
-    } 
-    // If it's a template literal, replace the quasis and expressions
-    else if (currentNode.type === "TemplateLiteral") {
-      currentNode.quasis.forEach((quasi, index) => {
-        const trimmedQuasiValue = quasi.value.raw.trim();
-        if (trimmedQuasiValue) {
-          newExpressions.push(createUseTransitionCall(trimmedQuasiValue));
+      else if (
+        currentNode.type === "StringLiteral" ||
+        (currentNode.type === "Literal" &&
+          typeof currentNode.value === "string")
+      ) {
+        const trimmedValue = currentNode.value.trim();
+        if (trimmedValue) {
+          newExpressions.push(createUseTransitionCall(trimmedValue));
           checkAndAddI18nImport(root);
         }
-        if (currentNode.expressions[index]) {
-          let expr = currentNode.expressions[index];
-          newExpressions.push(expr); // Push the expression as is
-        }
-      });
-    } 
-    // For other types, such as function calls, push the node as is
-    else {
-      newExpressions.push(currentNode);
-    }
+      }
+      else if (currentNode.type === "TemplateLiteral") {
+        currentNode.quasis.forEach((quasi, index) => {
+          const trimmedQuasiValue = quasi.value.raw.trim();
+          if (trimmedQuasiValue) {
+            newExpressions.push(createUseTransitionCall(trimmedQuasiValue));
+            checkAndAddI18nImport(root);
+          }
+          if (currentNode.expressions[index]) {
+            let expr = currentNode.expressions[index];
+            newExpressions.push(expr); 
+          }
+        });
+      }
+      else {
+        newExpressions.push(currentNode);
+      }
+    };
+    processNode(node);
+    return newExpressions.reduce((left, right) => {
+      return j.binaryExpression("+", left, right);
+    });
   };
 
-  // Start processing the binary expression
-  processNode(node);
-
-  // Rebuild the binary expression with transformed parts
-  return newExpressions.reduce((left, right) => {
-    return j.binaryExpression("+", left, right);
+  // Main transformation logic for binary expression
+  root.find(jscodeshift.VariableDeclarator).forEach((path) => {
+    const init = path.node.init;
+    if (init && init.type === "BinaryExpression" && init.operator === "+") {
+      path.node.init = processBinaryExpression(jscodeshift, init);
+    }
   });
-};
-
-// Main transformation logic
-root.find(jscodeshift.VariableDeclarator).forEach((path) => {
-  const init = path.node.init;
-
-  // Only process binary expressions
-  if (init && init.type === "BinaryExpression" && init.operator === "+") {
-    path.node.init = processBinaryExpression(jscodeshift, init);
-  }
-});
 
   // replace the variable string which we are using in jsx
   root
@@ -390,14 +430,16 @@ root.find(jscodeshift.VariableDeclarator).forEach((path) => {
       // attribute value is a string inside {}
       // eg: <input placeholder={"please enter your username"} />
       if (attributeValue && attributeValue.type === "JSXExpressionContainer") {
+        const expression = attributeValue.expression;
+
         if (
-          attributeValue.expression.type === "Literal" &&
-          typeof attributeValue.expression.value === "string"
+          expression.type === "Literal" &&
+          typeof expression.value === "string"
         ) {
-          const trimmedExpressionValue =
-            attributeValue.expression.value?.trim();
+          const trimmedExpressionValue = expression.value?.trim();
+
           if (trimmedExpressionValue) {
-            attributeValue.expression.value = createUseTransitionCall(
+            attributeValue.expression = createUseTransitionCall(
               trimmedExpressionValue
             );
 
