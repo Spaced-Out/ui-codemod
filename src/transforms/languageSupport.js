@@ -7,6 +7,7 @@ const {
   processLabelProperty,
   findAndProcessOptionsArray,
   isVariableInitializedWithString,
+  isVariableInitializedWithArray,
   transformConditionalExpression,
 } = require("../utils");
 
@@ -185,7 +186,84 @@ const transform = (fileInfo, api, options) => {
           .find(j.Identifier)
           .some((id) => id.node.name === variableName);
       });
-  };    
+  };
+  
+  //return if array is used in jsx but not in methods which return bool(like "includes")
+  const  isArrayVisibleInUI= (j, root, variableName) => {
+    return root
+      .find(j.JSXExpressionContainer)
+      .filter((path) => {
+        const parent = path.parentPath;
+        if (parent.node.type === "JSXElement") {
+          const openingElement = parent.node.openingElement;
+          if (openingElement) {
+            return true;
+          }
+        }
+        return false;
+      })
+      .some((path) => {
+        const isVariableUsed = j(path)
+          .find(j.Identifier)
+          .some((id) => id.node.name === variableName);
+  
+        if (isVariableUsed) {
+          // Check if the variable is used with boolean-returning array methods
+          const booleanReturningMethods = ["some", "every", "includes"];
+  
+          return !j(path)
+            .find(j.CallExpression)
+            .some((callExp) => {
+              const callee = callExp.node.callee;
+
+              return callee.type === "MemberExpression" &&
+                callee.object.name === variableName &&
+                booleanReturningMethods.includes(callee.property.name);
+            });
+        }
+  
+        return false;
+      });
+  };
+  
+
+
+  // replace the variable array which we are using in jsx
+  root
+    .find(jscodeshift.VariableDeclarator)
+    .filter(isVariableInitializedWithArray(jscodeshift))
+    .forEach((path) => {
+      const variableName = path.node.id.name;
+      const init = path.node.init;
+
+      if (
+        init.type === "ArrayExpression" &&
+        isArrayVisibleInUI(jscodeshift, root, variableName)
+      ) {
+        const elements = init.elements;
+
+        if (elements.length > 0) {
+          const transformedElements = elements
+            .filter(
+              (element) =>
+                element.type === "Literal" || element.type === "StringLiteral"
+            )
+            .map((element) => {
+              const trimmedValue = element.value.trim();
+              return trimmedValue
+                ? createUseTransitionCall(trimmedValue)
+                : null;
+            })
+            .filter(Boolean);
+
+          if (transformedElements.length > 0) {
+            path.node.init = jscodeshift.arrayExpression(transformedElements);
+            checkAndAddI18nImport(root);
+            checkAndAddI18nInstance(root);
+          }
+        }
+      }
+    });
 
   // Function to determine if a variable is used as attribute
   const isAttrituteVisibleInUI = (j, root, variableName) => {
