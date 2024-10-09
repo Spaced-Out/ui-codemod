@@ -91,7 +91,21 @@ const transform = (fileInfo, api, options) => {
           }
         } else if (child.expression.type === "ConditionalExpression") {
           child.expression = transformConditionalExpression(child.expression);
+        } else if (child.expression.type === "Literal") {
+          const trimmedExpressionValue = child.expression.value?.trim();
+        
+          if (typeof child.expression.value === "string" && trimmedExpressionValue) {
+            // Replace the Literal with the useI18n translation call
+            path.node.children[index] = jscodeshift.jsxExpressionContainer(
+              createUseTransitionCall(trimmedExpressionValue)
+            );
+        
+            // Add the necessary imports and i18n setup
+            checkAndAddI18nImport(root);
+            checkAndAddI18nInstance(root);
+          }
         }
+        
       }
     });
   });
@@ -171,7 +185,85 @@ const transform = (fileInfo, api, options) => {
           .find(j.Identifier)
           .some((id) => id.node.name === variableName);
       });
+  };    
+
+  // Function to determine if a variable is used as attribute
+  const isAttrituteVisibleInUI = (j, root, variableName) => {
+    return root.find(j.JSXElement).some((jsxElement) => {
+      const tagName = jsxElement.node.openingElement.name.name;
+      const hasRenderableAttributeWithVariable = j(jsxElement)
+        .find(j.JSXAttribute)
+        .some((attribute) => {
+          const attributeName = attribute.node.name.name;
+          if (isAttributeRenderable(tagName, attributeName)) {
+            if (
+              attribute.node.value &&
+              attribute.node.value.type === "JSXExpressionContainer"
+            ) {
+              return j(attribute.node.value)
+                .find(j.Identifier)
+                .some((id) => id.node.name === variableName);
+            }
+          }
+          return false; 
+        });
+      return hasRenderableAttributeWithVariable;
+    });
   };
+
+  // Function to process binary expressions and replace string literals
+  const processBinaryExpression = (j, node) => {
+    const newExpressions = [];
+
+    const processNode = (currentNode) => {
+      if (
+        currentNode.type === "BinaryExpression" &&
+        currentNode.operator === "+"
+      ) {
+        processNode(currentNode.left);
+        processNode(currentNode.right);
+      }
+      else if (
+        currentNode.type === "StringLiteral" ||
+        (currentNode.type === "Literal" &&
+          typeof currentNode.value === "string")
+      ) {
+        const trimmedValue = currentNode.value.trim();
+        if (trimmedValue) {
+          newExpressions.push(createUseTransitionCall(trimmedValue));
+          checkAndAddI18nImport(root);
+        }
+      }
+      else if (currentNode.type === "TemplateLiteral") {
+        currentNode.quasis.forEach((quasi, index) => {
+          const trimmedQuasiValue = quasi.value.raw.trim();
+          if (trimmedQuasiValue) {
+            newExpressions.push(createUseTransitionCall(trimmedQuasiValue));
+            checkAndAddI18nImport(root);
+          }
+          if (currentNode.expressions[index]) {
+            let expr = currentNode.expressions[index];
+            newExpressions.push(expr); 
+          }
+        });
+      }
+      else {
+        newExpressions.push(currentNode);
+      }
+    };
+    processNode(node);
+    return newExpressions.reduce((left, right) => {
+      return j.binaryExpression("+", left, right);
+    });
+  };
+
+  // Main transformation logic for binary expression
+  root.find(jscodeshift.VariableDeclarator).forEach((path) => {
+    const init = path.node.init;
+    if (init && init.type === "BinaryExpression" && init.operator === "+") {
+      path.node.init = processBinaryExpression(jscodeshift, init);
+    }
+  });
 
   // replace the variable string which we are using in jsx
   root
@@ -184,7 +276,8 @@ const transform = (fileInfo, api, options) => {
       if (
         (init.type === "StringLiteral" ||
           (init.type === "Literal" && typeof init.value === "string")) &&
-        isVariableVisibleInUI(jscodeshift, root, variableName)
+        (isVariableVisibleInUI(jscodeshift, root, variableName) ||
+          isAttrituteVisibleInUI(jscodeshift, root, variableName))
       ) {
         const trimmedValue = init.value.trim();
         if (trimmedValue) {
@@ -195,7 +288,9 @@ const transform = (fileInfo, api, options) => {
         }
       } else if (
         init.type === "TemplateLiteral" &&
-        isVariableVisibleInUI(jscodeshift, root, variableName)
+        isVariableVisibleInUI(jscodeshift, root, variableName) &&
+        (isVariableVisibleInUI(jscodeshift, root, variableName) ||
+          isAttrituteVisibleInUI(jscodeshift, root, variableName))
       ) {
         const newExpressions = [];
         path.node.init.quasis.forEach((expVal, index) => {
@@ -257,14 +352,16 @@ const transform = (fileInfo, api, options) => {
       // attribute value is a string inside {}
       // eg: <input placeholder={"please enter your username"} />
       if (attributeValue && attributeValue.type === "JSXExpressionContainer") {
+        const expression = attributeValue.expression;
+
         if (
-          attributeValue.expression.type === "Literal" &&
-          typeof attributeValue.expression.value === "string"
+          expression.type === "Literal" &&
+          typeof expression.value === "string"
         ) {
-          const trimmedExpressionValue =
-            attributeValue.expression.value?.trim();
+          const trimmedExpressionValue = expression.value?.trim();
+
           if (trimmedExpressionValue) {
-            attributeValue.expression.value = createUseTransitionCall(
+            attributeValue.expression = createUseTransitionCall(
               trimmedExpressionValue
             );
 

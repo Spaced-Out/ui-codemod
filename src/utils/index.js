@@ -225,21 +225,7 @@ const isVariableInitializedWithString = (j) => (path) => {
   const init = path.node.init;
   if (!init) return false;
 
-  switch (init.type) {
-    case "StringLiteral":
-      return true;
-    case "Literal":
-      return typeof init.value === "string";
-    case "TemplateLiteral":
-      return init.expressions.length === 0;
-    case "BinaryExpression":
-      return (
-        init.operator === "+" &&
-        (isStringExpression(j)(init.left) || isStringExpression(j)(init.right))
-      );
-    default:
-      return false;
-  }
+  return isStringExpression(j)(init);
 };
 
 // based on the object name, finding the variable if label exists, change it
@@ -293,19 +279,23 @@ const processLabelProperty = (properties, root) => {
   });
 };
 
+// helper function
 const isStringExpression = (j) => (node) => {
+  if (!node) return false;
+
   switch (node.type) {
-    case "StringLiteral":
-    case "TemplateLiteral":
+    case "StringLiteral": // Handles string literals (e.g., 'Hello')
       return true;
-    case "Literal":
+    case "Literal": // For older parsers, or if `Literal` is used
       return typeof node.value === "string";
-    case "BinaryExpression":
-      return (
-        node.operator === "+" &&
-        (isStringExpression(j)(node.left) || isStringExpression(j)(node.right))
-      );
-    default:
+    case "TemplateLiteral": // Handles template literals with or without expressions
+      return true;
+    case "BinaryExpression": // Handles string concatenations (e.g., 'a' + 'b')
+      if (node.operator === "+") {
+        return (
+          isStringExpression(j)(node.left) && isStringExpression(j)(node.right)
+        );
+      }
       return false;
   }
 };
