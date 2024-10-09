@@ -296,7 +296,7 @@ const transform = (fileInfo, api, options) => {
       ) {
         const newExpressions = [];
         path.node.init.quasis.forEach((expVal, index) => {
-          const trimmedExpressionValue = expVal.value.raw.trim();
+          const trimmedExpressionValue = expVal.value.raw;
           if (trimmedExpressionValue) {
             newExpressions.push(
               createUseTransitionCall(trimmedExpressionValue)
