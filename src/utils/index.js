@@ -272,18 +272,6 @@ const isStringExpression = (j) => (node) => {
   }
 };
 
-// return if variable declaration has "Array" value
-const isVariableInitializedWithArray = (j)=>(path) => {
-    const init = path.node.init;   
-    if (!init) {   
-        return false;
-    }
-    if (init.type === 'ArrayExpression') {
-        return true; 
-    }
-    return false;
-};
-
 const transformConditionalExpression = (expression) => {
     if (expression.type === "ConditionalExpression") {
       const consequentVal =

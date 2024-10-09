@@ -174,43 +174,6 @@ const transform = (fileInfo, api, options) => {
       });
   };
 
-  // replace the variable array which we are using in jsx
-  root
-    .find(jscodeshift.VariableDeclarator)
-    .filter(isVariableInitializedWithArray(jscodeshift))
-    .forEach((path) => {
-      const variableName = path.node.id.name;
-      const init = path.node.init;
-
-      if (
-        init.type === "ArrayExpression" &&
-        isVariableVisibleInUI(jscodeshift, root, variableName)
-      ) {
-        const elements = init.elements;
-
-        if (elements.length > 0) {
-          const transformedElements = elements
-            .filter(
-              (element) =>
-                element.type === "Literal" || element.type === "StringLiteral"
-            )
-            .map((element) => {
-              const trimmedValue = element.value.trim();
-              return trimmedValue
-                ? createUseTransitionCall(trimmedValue)
-                : null;
-            })
-            .filter(Boolean);
-
-          if (transformedElements.length > 0) {
-            path.node.init = jscodeshift.arrayExpression(transformedElements);
-            checkAndAddI18nImport(root);
-            checkAndAddI18nInstance(root);
-          }
-        }
-      }
-    });
-
   // replace the variable string which we are using in jsx
   root
     .find(jscodeshift.VariableDeclarator)
