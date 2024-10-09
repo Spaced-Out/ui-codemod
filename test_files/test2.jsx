@@ -13,7 +13,7 @@ function test2() {
     // const val = `${t("APPLE___BANANA_ARES", "apple   banana ares")}`
 
 
-    const toolTipText = 'These numbers are invalid and cannot receive message.';
+    const toolTipText = "(###) ### - ####";
 
     const val1 =  `my name ${val} is`
 

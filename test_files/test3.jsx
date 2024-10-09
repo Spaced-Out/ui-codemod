@@ -85,8 +85,8 @@ const BroadcastSuppression = (): React.Node => {
         ) : (
           <EmptyState
             description={`${t(
-  "NO_NUMBER_HAS_BEEN_EXCLUDED_FROM_THIS_MESSAGE",
-  "No number has been excluded from this message"
+"NO_NUMBER_HAS_BEEN_EXCLUDED_FROM_THIS_MESSAGE",
+"No number has been excluded from this message"
 )}`}
             imageVariant="data"
             title={`${t("IT_IS_EMPTY_HERE", "It is empty here")}`}
