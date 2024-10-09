@@ -7,7 +7,6 @@ const {
   processLabelProperty,
   findAndProcessOptionsArray,
   isVariableInitializedWithString,
-  isVariableInitializedWithArray,
   transformConditionalExpression,
 } = require("../utils");
 
