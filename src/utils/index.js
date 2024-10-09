@@ -314,7 +314,6 @@ module.exports = {
   checkAndAddI18nImport,
   checkAndAddI18nInstance,
   isVariableInitializedWithString,
-  isVariableInitializedWithArray,
   containsLink,
   processLabelProperty,
   findAndProcessOptionsArray,
