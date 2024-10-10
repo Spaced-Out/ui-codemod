@@ -24,13 +24,12 @@ const containsLink = (text) => {
 };
 
 const extractLabelAndSpecialChars = (str) => {
-  // Initialize an empty string for the label
   let newLabel = "";
   let leadingSpecial = "";
   let trailingSpecial = "";
 
   // Extract leading special characters
-  while (str.length > 0 && /[^A-Za-z0-9]/.test(str[0])) {
+  while (str.length > 0 && /[^A-Za-z]/.test(str[0])) {
     leadingSpecial += str[0];
     str = str.slice(1);
   }
@@ -41,7 +40,7 @@ const extractLabelAndSpecialChars = (str) => {
   // Extract trailing special characters
   while (
     newLabel.length > 0 &&
-    /[^A-Za-z0-9]/.test(newLabel[newLabel.length - 1])
+    /[^A-Za-z]/.test(newLabel[newLabel.length - 1])
   ) {
     trailingSpecial = newLabel[newLabel.length - 1] + trailingSpecial;
     newLabel = newLabel.slice(0, -1);
@@ -50,143 +49,35 @@ const extractLabelAndSpecialChars = (str) => {
   return { leadingSpecial, newLabel, trailingSpecial }; // Return the special characters and label
 };
 
-const splitStringByCharacterType = (inputLine) => {
-  const substrings = [];
-  let currentSubstring = "";
-  let isPreviousCharacterAlpha = true;
-
-  for (let i = 0; i < inputLine.length; i++) {
-    const currentChar = inputLine.charAt(i);
-    const currentCharLower = currentChar.toLowerCase();
-    const isCurrentCharacterAlpha =
-      currentCharLower >= "a" && currentCharLower <= "z";
-
-    if (isCurrentCharacterAlpha === isPreviousCharacterAlpha) {
-      currentSubstring += currentChar;
-    } else {
-      substrings.push(currentSubstring);
-      currentSubstring = currentChar;
-      isPreviousCharacterAlpha = isCurrentCharacterAlpha;
+const createUseTransitionCall = (label) => {
+    if (/\n/.test(label)) {
+      label = label.replace(/\s*\r?\n\s*/g, ' ').trim();
     }
+
+  const { leadingSpecial, newLabel, trailingSpecial } = extractLabelAndSpecialChars(label);  
+  const finalLabel = newLabel.trim();
+
+  if (finalLabel) {
+      const templateQuasis = [
+          jscodeshift.templateElement({ raw: `${leadingSpecial}`, cooked: `${leadingSpecial}` }, true),
+          jscodeshift.templateElement({ raw: `${trailingSpecial}`, cooked: `${trailingSpecial}` }, true),
+      ];
+
+      const expressions = [
+          jscodeshift.callExpression(jscodeshift.identifier("t"), [
+              jscodeshift.literal(getTranslationLabel(finalLabel)), 
+              jscodeshift.literal(finalLabel), 
+          ])
+      ];
+
+      return jscodeshift.templateLiteral(templateQuasis, expressions);
   }
 
-  // Handle the last substring
-  if (currentSubstring.length !== 0) {
-    substrings.push(currentSubstring);
-  }
-
-  const isAlphaStartArray = new Array(substrings.length).fill(false);
-
-  for (let i = 0; i < substrings.length; i++) {
-    const substring = substrings[i];
-
-    if (
-      substring.charAt(0).toLowerCase() >= "a" &&
-      substring.charAt(0).toLowerCase() <= "z"
-    ) {
-      isAlphaStartArray[i] = true;
-      continue;
-    } else {
-      let containsOnlySpaces = true;
-      for (let k = 0; k < substring.length; k++) {
-        const char = substring.charAt(k);
-        if (char !== " ") {
-          containsOnlySpaces = false;
-          break;
-        }
-      }
-      isAlphaStartArray[i] = containsOnlySpaces;
-    }
-  }
-
-  const finalResult = [];
-  currentSubstring = "";
-
-  for (let i = 0; i < substrings.length; i++) {
-    const substring = substrings[i];
-    if (isAlphaStartArray[i]) {
-      currentSubstring += substring;
-    } else {
-      finalResult.push(currentSubstring);
-      finalResult.push(substring);
-      currentSubstring = "";
-    }
-  }
-
-  if (currentSubstring.length !== 0) {
-    finalResult.push(currentSubstring);
-  }
-
-  return finalResult;
+  return jscodeshift.literal(label); 
 };
 
-const createUseTransitionCall = (rawLabel) => {
-  const { leadingSpecial, newLabel, trailingSpecial } =
-    extractLabelAndSpecialChars(rawLabel);
-  const segments = splitStringByCharacterType(newLabel);
-  const quasis = [];
-  const expressions = [];
 
-  let isQuasi = true; // Track whether we're adding a quasi or expression
 
-  if (leadingSpecial) {
-    quasis.push(
-      jscodeshift.templateElement(
-        { raw: leadingSpecial, cooked: leadingSpecial },
-        false
-      )
-    );
-    isQuasi = false;
-  }
-
-  segments.forEach((segment, index) => {
-    const isLast = index === segments.length - 1;
-
-    // If segment is non-alphabetical, it's a quasi
-    if (/^[^a-zA-Z]+$/.test(segment)) {
-      quasis.push(
-        jscodeshift.templateElement({ raw: segment, cooked: segment }, false)
-      );
-      // Only true if this is the last segment and we're ending with a quasi
-      isQuasi = false;
-    } else {
-      // For text segments that need translation
-      const translationLabel = getTranslationLabel(segment.trim());
-
-      // Add empty quasi before expression if needed
-      if (isQuasi) {
-        quasis.push(
-          jscodeshift.templateElement({ raw: "", cooked: "" }, false)
-        );
-      }
-
-      expressions.push(
-        jscodeshift.callExpression(jscodeshift.identifier("t"), [
-          jscodeshift.literal(translationLabel),
-          jscodeshift.literal(segment.trim()),
-        ])
-      );
-      isQuasi = true;
-    }
-  });
-
-  if (trailingSpecial) {
-    quasis.push(
-      jscodeshift.templateElement(
-        { raw: trailingSpecial, cooked: trailingSpecial },
-        false
-      )
-    );
-  }
-
-  if (isQuasi) {
-    quasis.push(jscodeshift.templateElement({ raw: "", cooked: "" }, true));
-  }
-
-  return jscodeshift.templateLiteral(quasis, expressions);
-};
-
-// returns translation label for an extracted label
 const getTranslationLabel = (label) => {
   return (
     label
