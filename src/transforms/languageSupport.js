@@ -94,19 +94,21 @@ const transform = (fileInfo, api, options) => {
           child.expression = transformConditionalExpression(child.expression);
         } else if (child.expression.type === "Literal") {
           const trimmedExpressionValue = child.expression.value?.trim();
-        
-          if (typeof child.expression.value === "string" && trimmedExpressionValue) {
+
+          if (
+            typeof child.expression.value === "string" &&
+            trimmedExpressionValue
+          ) {
             // Replace the Literal with the useI18n translation call
             path.node.children[index] = jscodeshift.jsxExpressionContainer(
               createUseTransitionCall(trimmedExpressionValue)
             );
-        
+
             // Add the necessary imports and i18n setup
             checkAndAddI18nImport(root);
             checkAndAddI18nInstance(root);
           }
         }
-        
       }
     });
   });
@@ -187,9 +189,9 @@ const transform = (fileInfo, api, options) => {
           .some((id) => id.node.name === variableName);
       });
   };
-  
+
   //return if array is used in jsx but not in methods which return bool(like "includes")
-  const  isArrayVisibleInUI= (j, root, variableName) => {
+  const isArrayVisibleInUI = (j, root, variableName) => {
     return root
       .find(j.JSXExpressionContainer)
       .filter((path) => {
@@ -206,27 +208,27 @@ const transform = (fileInfo, api, options) => {
         const isVariableUsed = j(path)
           .find(j.Identifier)
           .some((id) => id.node.name === variableName);
-  
+
         if (isVariableUsed) {
           // Check if the variable is used with boolean-returning array methods
           const booleanReturningMethods = ["some", "every", "includes"];
-  
+
           return !j(path)
             .find(j.CallExpression)
             .some((callExp) => {
               const callee = callExp.node.callee;
 
-              return callee.type === "MemberExpression" &&
+              return (
+                callee.type === "MemberExpression" &&
                 callee.object.name === variableName &&
-                booleanReturningMethods.includes(callee.property.name);
+                booleanReturningMethods.includes(callee.property.name)
+              );
             });
         }
-  
+
         return false;
       });
   };
-  
-
 
   // replace the variable array which we are using in jsx
   root
@@ -283,7 +285,7 @@ const transform = (fileInfo, api, options) => {
                 .some((id) => id.node.name === variableName);
             }
           }
-          return false; 
+          return false;
         });
       return hasRenderableAttributeWithVariable;
     });
@@ -300,8 +302,7 @@ const transform = (fileInfo, api, options) => {
       ) {
         processNode(currentNode.left);
         processNode(currentNode.right);
-      }
-      else if (
+      } else if (
         currentNode.type === "StringLiteral" ||
         (currentNode.type === "Literal" &&
           typeof currentNode.value === "string")
@@ -311,8 +312,7 @@ const transform = (fileInfo, api, options) => {
           newExpressions.push(createUseTransitionCall(trimmedValue));
           checkAndAddI18nImport(root);
         }
-      }
-      else if (currentNode.type === "TemplateLiteral") {
+      } else if (currentNode.type === "TemplateLiteral") {
         currentNode.quasis.forEach((quasi, index) => {
           const trimmedQuasiValue = quasi.value.raw.trim();
           if (trimmedQuasiValue) {
@@ -321,11 +321,10 @@ const transform = (fileInfo, api, options) => {
           }
           if (currentNode.expressions[index]) {
             let expr = currentNode.expressions[index];
-            newExpressions.push(expr); 
+            newExpressions.push(expr);
           }
         });
-      }
-      else {
+      } else {
         newExpressions.push(currentNode);
       }
     };
